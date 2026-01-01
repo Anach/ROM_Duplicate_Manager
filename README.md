@@ -1,76 +1,68 @@
 # ROM Duplicate Manager
 
-<img width="1102" height="632" alt="image" src="https://github.com/user-attachments/assets/2d5ac876-335f-4df3-82fb-374641565b1d" />
-
-
-A feature-rich cross-platform tool for intelligently finding, sorting, and safely deleting duplicate ROM (and general archive) files from folders and subfolders.
-
-**No ROMs are harmed!** All deletes send files to your system Recycle Bin/Trash.
+A feature-rich, cross-platform tool for intelligently finding, sorting, and safely deleting duplicate ROM and archive files in your collections. Also detects and removes orphaned cover/screenshot images in a dedicated images subfolder. Built for personal ROM library hygiene—**no files are destroyed, all deletions go to your system Recycle Bin/Trash**.
 
 ---
 
 ## Features
 
-- **Recursive Scan**: Scan a folder and all subfolders for duplicate files, grouped by normalized base filename.
-- **Smart Select**:
-  - Combine version/region/numbering/part info into an intelligent file group.
-  - Simple left-click on group? Switch filter mode on the fly!
-  - Manual filter override is possible.
-- **Filter Options**:
-  - Language selection for files (e.g., only show English, Japanese, etc.).
-  - File-type/extension filtering.
-  - Text-based filtering with substring matching.
-- **Sub-folder Filter**: Limit search/filter to specific subdirectories.
-- **Keep/Delete Choice**:
-  - “Smart Select” suggests which file is the most optimal to keep (e.g., best version/language/region).
-  - Color tags: **Green = Keep**, **Red/strike-through = Delete**
-  - Easily toggle suggestions and make manual changes.
-  - “Select other” quickly marks all but the suggested base file for deletion.
-- **Bulk Delete**: Remove all selected files with a single action (files sent to trash for safety).
-- **Visuals**:
+- **Recursive Duplicate Scan**: Find duplicate ROM/archive files by normalized base name (ignoring version, region, etc.) in a folder and all subfolders.
+- **Smart Select System**:
+  - Intelligently aggregates similar files into groups.
+  - “Smart Select” marks best version to keep, and others to remove (with color cues: **Green = Keep, Red/Strike = Delete**).
+  - Quickly toggle or override suggestions with a click.
+- **Language Preference**: Prioritize which language/region to keep in each group.
+- **File-type and Sub-folder Filtering**: Limit search/filter by file-type category or inclusion of subfolders.
+- **Manual Filter and Marking**:
+  - Search for any name/keyword.
+  - Buttons to bulk “Keep” or “Delete” by filter.
+  - “Reset” to clear marks.
+- **Bulk, Safe Delete**: Delete all files marked for removal in one step (sent to Trash).
+- **Orphaned Image Handling (NEW in 1.2.0)**:
+  - Detects images in `/images/` folder without matching ROM/archive file (“orphaned”).
+  - Optionally moves orphaned images to Trash alongside regular duplicates.
+- **Status and Progress Reporting**:
   - Progress bar for batch operations
-  - Customizable row color, smart select style, and dark/light mode (all saved to `.ini` config)
-  - Alternate color rows for visual clarity
-  - Language, Smart Select, and appearance options remembered between launches (via `.ini`)
-- **No grid lines**: Clean, modern look
+  - Status line shows duplicate/unique/orphaned counts.
+- **Customizable Display**:
+  - Alternating row colors, dark/light mode, and more—all preferences saved to `.ini`
+  - No distracting grid lines; clear modern appearance
+- **Extensive Tooltips (NEW in 1.2.0)**:
+  - Mouse-over help for nearly every button/setting, ideal for new users
 
 ## Usage
 
-1. **Run**:  
+1. **Run the program**  
    - With Python:  
-     ```bash
+     ```
      pip install -r requirements.txt
      python rom_duplicate_manager.py
      ```
-   - Or use [prebuilt Windows Executable](https://github.com/Anach/ROM_Duplicate_Manager/releases/latest) (`.zip`).
-2. **Select Folder** to scan (scans recursively).
-3. **Adjust Filters**: Use language, file type, or text filters as needed.
-4. **Smart Select**: Let the tool suggest a base file in each group or override manually.
-5. **Review and Delete**: Review flagged files (red/strike) and delete selected ones—safe to trash!
-6. **Tweak appearance and settings** as desired (changes saved to `.ini`).
-
-## Download
-
-Get the latest release (Windows executable or source) from the [Releases page](https://github.com/Anach/ROM_Duplicate_Manager/releases).
+   - Or download a [standalone Windows executable](https://github.com/Anach/ROM_Duplicate_Manager/releases/latest).
+2. **Browse** to the folder where your ROMs are kept.
+3. **(Optional)**: Enable/disable subfolder scan, file-type filter, language preference, or the new image/orphan scan feature.
+4. **Scan** for duplicates and orphaned images. See visual grouping and marking.
+5. **Use filters and Smart Select** to mark files for keep or delete.
+6. **Press Delete Selected** — files (and optionally orphaned images) go to Trash.
+7. **Hover mouse** over buttons and fields for quick help/tooltips.
 
 ## Requirements
 
 - Python 3.x (if running from source)
-- tkinter (comes with Python)
+- tkinter (standard with Python)
 - send2trash (`pip install send2trash`)
 
 ## File Structure
 
-- `rom_duplicate_manager.py` - Main application code.
-- `requirements.txt` - Python dependencies.
-- `rom_duplicate_manager.ini` - User/config settings (auto-generated as needed).
-- `rom_duplicate_manager.spec` - PyInstaller config for building standalone executables.
-- `.gitignore` - Standard gitignore
-- `LICENSE` - License file
+- `rom_duplicate_manager.py` — Main application source
+- `requirements.txt` — Python dependency list
+- `rom_duplicate_manager.ini` — Config/preferences (auto-generated as needed)
+- `rom_duplicate_manager.spec` — PyInstaller config for Windows binary
+- `.gitignore`, `LICENSE`, `README.md`, `CHANGELOG.md`
 
 ## Platform Support
 
-- Works on Windows, macOS, Linux (Python required except for Windows executable)
+- Windows, macOS, Linux (Python required except for Windows executable)
 
 ## License
 
@@ -78,4 +70,4 @@ MIT License
 
 ---
 
-**This tool is for personal backup/library management. Please only use it on legally obtained files!**
+_Use responsibly on your own files and libraries! Please only use with legally obtained software/ROMs._
