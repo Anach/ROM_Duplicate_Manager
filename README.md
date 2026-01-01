@@ -1,6 +1,8 @@
-# ROM Duplicate Manager
+# ROM Duplicate Manager (Built for managing my R36S)
 
 A feature-rich, cross-platform tool for intelligently finding, sorting, and safely deleting duplicate ROM and archive files in your collections. Also detects and removes orphaned cover/screenshot images in a dedicated images subfolder. Built for personal ROM library hygiene—**no files are destroyed, all deletions go to your system Recycle Bin/Trash**.
+
+<img width="1102" height="632" alt="image" src="https://github.com/user-attachments/assets/3da82d2b-e0bd-41ea-8288-1142a21b6cd8" />
 
 ---
 
