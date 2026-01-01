@@ -1,5 +1,8 @@
 # ROM Duplicate Manager
 
+<img width="1102" height="632" alt="image" src="https://github.com/user-attachments/assets/2d5ac876-335f-4df3-82fb-374641565b1d" />
+
+
 A feature-rich cross-platform tool for intelligently finding, sorting, and safely deleting duplicate ROM (and general archive) files from folders and subfolders.
 
 **No ROMs are harmed!** All deletes send files to your system Recycle Bin/Trash.
