@@ -16,13 +16,14 @@ def load_config():
         config.read(CONFIG_FILE)
     return config
 
-def save_config(dark_mode, row_colors, language, smart_select):
+def save_config(dark_mode, row_colors, language, smart_select, scan_images):
     config = configparser.ConfigParser()
     config['Settings'] = {
         'dark_mode': str(dark_mode),
         'row_colors': str(row_colors),
         'language': str(language),
-        'smart_select': str(smart_select)
+        'smart_select': str(smart_select),
+        'scan_images': str(scan_images)
     }
     with open(CONFIG_FILE, 'w') as f:
         config.write(f)
@@ -180,6 +181,76 @@ def scan_folder(folder, recursive=False, extension_filter=None):
     return duplicates, non_duplicates
 
 # ---------------------
+# Tooltip handling
+# ---------------------
+class ToolTip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tip_window = None
+        self.id = None
+        widget.bind("<Enter>", self.schedule_tip, add="+")
+        widget.bind("<Leave>", self.hide_tip, add="+")
+        widget.bind("<ButtonPress>", self.hide_tip, add="+")
+
+    def schedule_tip(self, event=None):
+        self.hide_tip()
+        if self.text:
+            self.id = self.widget.after(500, self.show_tip)
+
+    def show_tip(self, event=None):
+        if not self.text:
+            return
+        try:
+            if not self.widget.winfo_exists() or not self.widget.winfo_viewable():
+                return
+        except tk.TclError:
+            return
+
+        x = self.widget.winfo_rootx() + 20
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 5
+        self.tip_window = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(1)
+        tw.wm_geometry("+%d+%d" % (x, y))
+        tw.attributes("-topmost", True)
+        label = tk.Label(tw, text=self.text, justify='left',
+                       background="#ffffe0", foreground="black", relief='solid', borderwidth=1,
+                       font=("tahoma", "8", "normal"))
+        label.pack(ipadx=1)
+
+    def hide_tip(self, event=None):
+        if self.id:
+            try:
+                self.widget.after_cancel(self.id)
+            except tk.TclError:
+                pass
+            self.id = None
+        if self.tip_window:
+            try:
+                self.tip_window.destroy()
+            except tk.TclError:
+                pass
+            self.tip_window = None
+
+def create_tooltip(widget, text):
+    if hasattr(widget, 'tooltip'):
+        widget.tooltip.text = text
+    else:
+        widget.tooltip = ToolTip(widget, text)
+
+    # For complex widgets like Combobox, bind to children too
+    def bind_children(w):
+        for child in w.winfo_children():
+            child.bind("<Enter>", widget.tooltip.schedule_tip, add="+")
+            child.bind("<Leave>", widget.tooltip.hide_tip, add="+")
+            bind_children(child)
+
+    try:
+        bind_children(widget)
+    except tk.TclError:
+        pass
+
+# ---------------------
 # Auto-hiding Scrollbar
 # ---------------------
 class AutoScrollbar(ttk.Scrollbar):
@@ -206,6 +277,7 @@ class DuplicateManager(tk.Tk):
                                             fallback=config.getboolean('Settings', 'alternate_colors', fallback=True))
         language_saved = config.get('Settings', 'language', fallback='Any')
         smart_select_saved = config.getboolean('Settings', 'smart_select', fallback=False)
+        scan_images_saved = config.getboolean('Settings', 'scan_images', fallback=False)
 
         self.dark_mode_enabled = tk.BooleanVar(value=dark_mode_saved)
         self.row_colors = tk.BooleanVar(value=row_colors_saved)
@@ -221,6 +293,7 @@ class DuplicateManager(tk.Tk):
         self.folder = tk.StringVar()
         self.filter_text = tk.StringVar()
         self.smart_select = tk.BooleanVar(value=smart_select_saved)
+        self.scan_images = tk.BooleanVar(value=scan_images_saved)
         self.include_subfolders = tk.BooleanVar(value=False)
         self.file_type_filter = tk.StringVar(value="Wildcard *.*")
         self.language_filter = tk.StringVar(value=language_saved)
@@ -253,18 +326,26 @@ class DuplicateManager(tk.Tk):
         row1.pack(fill='x', padx=2, pady=2)
 
         tk.Label(row1, text="Folder:").pack(side='left', padx=2)
-        tk.Entry(row1, textvariable=self.folder, width=30).pack(side='left', padx=5)
-        tk.Button(row1, text="Browse", command=self.browse_folder).pack(side='left')
+        self.folder_entry = tk.Entry(row1, textvariable=self.folder, width=30)
+        self.folder_entry.pack(side='left', padx=5)
+        self.folder_entry.bind('<Return>', lambda e: self.scan())
+        create_tooltip(self.folder_entry, "Current folder path. Press Enter to rescan.")
 
-        tk.Checkbutton(row1, text="Sub-folders", variable=self.include_subfolders).pack(side='left', padx=5)
+        self.browse_btn = tk.Button(row1, text="Browse", command=self.browse_folder)
+        self.browse_btn.pack(side='left')
+        create_tooltip(self.browse_btn, "Select a folder to scan for duplicates")
+
+        self.subfolders_check = tk.Checkbutton(row1, text="Sub-folders", variable=self.include_subfolders, command=self.scan)
+        self.subfolders_check.pack(side='left', padx=5)
+        create_tooltip(self.subfolders_check, "Include sub-folders in the scan")
 
         tk.Label(row1, text="Type:").pack(side='left', padx=2)
         self.type_combo = ttk.Combobox(row1, textvariable=self.file_type_filter,
                                        values=list(self.file_types.keys()),
                                        state='readonly', width=12)
         self.type_combo.pack(side='left', padx=2)
-
-        tk.Button(row1, text="Scan", command=self.scan).pack(side='left', padx=5)
+        self.type_combo.bind('<<ComboboxSelected>>', lambda e: self.scan())
+        create_tooltip(self.type_combo, "Filter files by category")
 
         ttk.Separator(row1, orient='vertical').pack(side='left', fill='y', padx=10)
 
@@ -276,8 +357,19 @@ class DuplicateManager(tk.Tk):
                                        state='readonly', width=10)
         self.lang_combo.pack(side='left', padx=2)
         self.lang_combo.bind('<<ComboboxSelected>>', self.on_language_change)
+        create_tooltip(self.lang_combo, "Preferred language for Smart Select suggestions")
 
-        tk.Checkbutton(row1, text="Smart Select", variable=self.smart_select).pack(side='left', padx=2)
+        self.smart_select_check = tk.Checkbutton(row1, text="Smart Select", variable=self.smart_select)
+        self.smart_select_check.pack(side='left', padx=2)
+        create_tooltip(self.smart_select_check, "Automatically mark duplicates for removal based on priority")
+
+        self.scan_images_check = tk.Checkbutton(row1, text="Scan Images", variable=self.scan_images, command=self.on_scan_images_toggle)
+        self.scan_images_check.pack(side='left', padx=2)
+        create_tooltip(self.scan_images_check, "Enable scanning and automatic deletion of orphaned images in the /images/ sub-folder")
+
+        self.status_label = tk.Label(row1, text="", font=tkfont.Font(size=9, weight='bold'))
+        self.status_label.pack(side='left', padx=10)
+        create_tooltip(self.status_label, "Summary of scan results")
 
         # Row 2: Filter and Display controls
         row2 = tk.Frame(self.frame_top)
@@ -286,18 +378,35 @@ class DuplicateManager(tk.Tk):
         tk.Label(row2, text="Filter:").pack(side='left', padx=5)
         self.filter_entry = tk.Entry(row2, textvariable=self.filter_text, width=15)
         self.filter_entry.pack(side='left', padx=5)
-        tk.Button(row2, text="Clear", command=self.clear_filter).pack(side='left', padx=2)
+        create_tooltip(self.filter_entry, "Filter the list by filename")
 
-        tk.Button(row2, text="Keep", command=self.mark_filtered_keep, fg='green').pack(side='left', padx=5)
-        tk.Button(row2, text="Delete", command=self.mark_filtered_delete, fg='red').pack(side='left', padx=2)
-        tk.Button(row2, text="Reset", command=self.reset_marks).pack(side='left', padx=5)
+        self.clear_btn = tk.Button(row2, text="Clear", command=self.clear_filter)
+        self.clear_btn.pack(side='left', padx=2)
+        create_tooltip(self.clear_btn, "Clear the filename filter")
+
+        self.keep_btn = tk.Button(row2, text="Keep", command=self.mark_filtered_keep, fg='green')
+        self.keep_btn.pack(side='left', padx=5)
+        create_tooltip(self.keep_btn, "Mark all files matching the filter to be KEPT")
+
+        self.mark_del_btn = tk.Button(row2, text="Delete", command=self.mark_filtered_delete, fg='red')
+        self.mark_del_btn.pack(side='left', padx=2)
+        create_tooltip(self.mark_del_btn, "Mark all files matching the filter to be DELETED")
+
+        self.reset_btn = tk.Button(row2, text="Reset", command=self.reset_marks)
+        self.reset_btn.pack(side='left', padx=5)
+        create_tooltip(self.reset_btn, "Reset all manual keep/delete marks")
 
         ttk.Separator(row2, orient='vertical').pack(side='left', fill='y', padx=10)
 
-        tk.Checkbutton(row2, text="Row colors", variable=self.row_colors,
-                      command=self.toggle_row_colors).pack(side='left', padx=5)
-        tk.Checkbutton(row2, text="Dark Mode", variable=self.dark_mode_enabled,
-                      command=self.toggle_dark_mode).pack(side='left', padx=5)
+        self.row_colors_check = tk.Checkbutton(row2, text="Row colors", variable=self.row_colors,
+                      command=self.toggle_row_colors)
+        self.row_colors_check.pack(side='left', padx=5)
+        create_tooltip(self.row_colors_check, "Toggle alternating background colors for list rows")
+
+        self.dark_mode_check = tk.Checkbutton(row2, text="Dark Mode", variable=self.dark_mode_enabled,
+                      command=self.toggle_dark_mode)
+        self.dark_mode_check.pack(side='left', padx=5)
+        create_tooltip(self.dark_mode_check, "Toggle between light and dark user interface")
 
         tree_frame = tk.Frame(self, relief='sunken', bd=2)
         tree_frame.pack(fill='both', expand=True, padx=5, pady=5)
@@ -326,8 +435,12 @@ class DuplicateManager(tk.Tk):
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
 
-        self.delete_button = tk.Button(self, text="Delete Selected", command=self.delete_selected)
-        self.delete_button.pack(pady=5)
+        self.button_frame = tk.Frame(self)
+        self.button_frame.pack(pady=5)
+
+        self.delete_button = tk.Button(self.button_frame, text="Delete Selected", command=self.delete_selected)
+        self.delete_button.pack(side='left', padx=5)
+        self.update_delete_button_tooltip()
 
         # Progress bar for deletions
         self.progress_frame = tk.Frame(self)
@@ -355,28 +468,63 @@ class DuplicateManager(tk.Tk):
 
     def save_settings(self):
         save_config(self.dark_mode_enabled.get(), self.row_colors.get(),
-                    self.language_filter.get(), self.smart_select.get())
+                    self.language_filter.get(), self.smart_select.get(),
+                    self.scan_images.get())
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
         if folder:
             self.folder.set(folder)
+            self.scan()
+
+    def get_orphaned_images(self, keep_filenames=None):
+        folder = self.folder.get()
+        if not folder or not os.path.isdir(folder):
+            return []
+        images_folder = os.path.join(folder, 'images')
+        if not os.path.isdir(images_folder):
+            return []
+
+        if keep_filenames is None:
+            keep_filenames = set()
+            for paths in self.duplicates.values():
+                for path in paths:
+                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
+            for paths in self.non_duplicates.values():
+                for path in paths:
+                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
+
+        image_extensions = self.file_types["Images"]
+        orphaned = []
+        for f in os.listdir(images_folder):
+            full_path = os.path.join(images_folder, f)
+            if os.path.isfile(full_path):
+                name, ext = os.path.splitext(f)
+                if ext.lower() in image_extensions:
+                    match_name = name.lower()
+                    if match_name.endswith("-image"):
+                        match_name = match_name[:-6]
+                    if match_name not in keep_filenames:
+                        orphaned.append(full_path)
+        return orphaned
 
     def scan(self):
         folder = self.folder.get()
         if not folder or not os.path.isdir(folder):
-            messagebox.showerror("Error", "Please select a valid folder")
             return
 
         ext_filter = self.file_types.get(self.file_type_filter.get())
         self.duplicates, self.non_duplicates = scan_folder(folder, self.include_subfolders.get(), ext_filter)
 
-        if not self.duplicates:
-            messagebox.showinfo("No Duplicates",
-                              f"No duplicate files found in the folder.\nShowing {len(self.non_duplicates)} unique file(s).")
-        else:
-            messagebox.showinfo("Scan Complete",
-                              f"Found {len(self.duplicates)} duplicate group(s) and {len(self.non_duplicates)} unique file(s).")
+        status = f"Found {len(self.duplicates)} duplicate group(s) and {len(self.non_duplicates)} unique file(s)."
+
+        if self.scan_images.get():
+            orphaned = self.get_orphaned_images()
+            if orphaned:
+                status += f" | {len(orphaned)} orphaned image(s) found."
+
+        if hasattr(self, 'status_label'):
+            self.status_label.config(text=status)
 
         self.populate_tree()
 
@@ -384,6 +532,17 @@ class DuplicateManager(tk.Tk):
         if hasattr(self, 'tree') and self.tree.get_children():
             self.apply_base_suggestions()
         self.save_settings()
+
+    def on_scan_images_toggle(self):
+        self.update_delete_button_tooltip()
+        self.scan()
+        self.save_settings()
+
+    def update_delete_button_tooltip(self):
+        if self.scan_images.get():
+            create_tooltip(self.delete_button, "Move all marked files AND orphaned images to the recycle bin")
+        else:
+            create_tooltip(self.delete_button, "Move all marked or selected files to the recycle bin")
 
     def on_smart_select_change(self, *args):
         if not hasattr(self, 'tree') or not self.tree.get_children():
@@ -641,11 +800,40 @@ class DuplicateManager(tk.Tk):
         file_items = [item for item in selected if self.tree.parent(item)]
         if not file_items:
             for item in self.tree.tag_has('to_remove'): file_items.append(item)
-        if not file_items:
+
+        orphaned_images = []
+        if self.scan_images.get():
+            # Identify files being kept to find images that will become orphaned
+            all_files = []
+            for paths in self.duplicates.values(): all_files.extend(paths)
+            for paths in self.non_duplicates.values(): all_files.extend(paths)
+
+            files_to_delete_paths = set()
+            for item in file_items:
+                values = self.tree.item(item, 'values')
+                if values: files_to_delete_paths.add(values[0])
+
+            keep_filenames = set()
+            for path in all_files:
+                if path not in files_to_delete_paths:
+                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
+
+            orphaned_images = self.get_orphaned_images(keep_filenames)
+
+        if not file_items and not orphaned_images:
             messagebox.showinfo("Info", "No files selected or marked for removal")
             return
-        total_to_delete = len(file_items)
-        confirm = messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete {total_to_delete} file(s)?")
+
+        total_to_delete = len(file_items) + len(orphaned_images)
+
+        if file_items and orphaned_images:
+            msg = f"You are about to move {len(file_items)} marked file(s) AND {len(orphaned_images)} orphaned image(s) to the recycle bin"
+        elif file_items:
+            msg = f"You are about to move {len(file_items)} marked file(s) to the recycle bin"
+        else:
+            msg = f"You are about to move {len(orphaned_images)} orphaned image(s) to the recycle bin"
+
+        confirm = messagebox.askokcancel("Confirm Delete", msg)
         if not confirm: return
 
         # Show progress label above progress bar, both centered and 50% width
@@ -656,16 +844,14 @@ class DuplicateManager(tk.Tk):
         self.progress_bar['value'] = 0
         deleted_count = 0
         parents_to_check = set()
+
+        # Delete marked files
         for i, item in enumerate(file_items):
             values = self.tree.item(item, 'values')
             if values:
                 path = values[0]
                 filename = os.path.basename(path)
-                # Truncate filename if too long (approx 60 chars to fit in 50% width)
-                if len(filename) > 60:
-                    display_name = filename[:57] + "..."
-                else:
-                    display_name = filename
+                display_name = filename[:57] + "..." if len(filename) > 60 else filename
                 self.progress_label.config(text=f"Deleting: {display_name}")
                 self.progress_bar['value'] = i + 1
                 self.update_idletasks()
@@ -684,8 +870,24 @@ class DuplicateManager(tk.Tk):
                         elif parent_text in self.non_duplicates:
                             if normalized_path in self.non_duplicates[parent_text]: self.non_duplicates[parent_text].remove(normalized_path)
                     except Exception as e: messagebox.showerror("Error", f"Failed to delete {path}: {str(e)}")
+
+        # Delete orphaned images
+        start_idx = len(file_items)
+        for i, path in enumerate(orphaned_images):
+            filename = os.path.basename(path)
+            display_name = filename[:57] + "..." if len(filename) > 60 else filename
+            self.progress_label.config(text=f"Deleting Image: {display_name}")
+            self.progress_bar['value'] = start_idx + i + 1
+            self.update_idletasks()
+            try:
+                send2trash(path.replace('/', os.sep))
+                deleted_count += 1
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete {path}: {str(e)}")
+
         self.progress_bar.pack_forget()
         self.progress_label.pack_forget()
+
         for parent in parents_to_check:
             children = self.tree.get_children(parent)
             parent_text = self.tree.item(parent, 'text')
@@ -698,8 +900,10 @@ class DuplicateManager(tk.Tk):
                 self.non_duplicates[parent_text] = [child_path]
                 del self.duplicates[parent_text]
                 self.tree.item(parent, open=False, tags=('unique_group',))
+
         self.refresh_row_colors()
-        messagebox.showinfo("Done", f"Deleted {deleted_count} file(s)")
+        messagebox.showinfo("Done", f"Deleted {deleted_count} item(s)")
+        self.scan()
 
     def toggle_dark_mode(self):
         if self.dark_mode_enabled.get(): self.apply_dark_mode()
