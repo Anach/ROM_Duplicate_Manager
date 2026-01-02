@@ -1,70 +1,58 @@
-# ROM Duplicate Manager (Built for managing my R36S)
+# ROM Duplicate Manager
 
-A feature-rich, cross-platform tool for intelligently finding, sorting, and safely deleting duplicate ROM and archive files in your collections. Also detects and removes orphaned cover/screenshot images in a dedicated images subfolder. Built for personal ROM library hygiene—**no files are destroyed, all deletions go to your system Recycle Bin/Trash**.
-
-<img width="1102" height="632" alt="image" src="https://github.com/user-attachments/assets/3da82d2b-e0bd-41ea-8288-1142a21b6cd8" />
+A cross-platform GUI tool for duplicate ROM, archive, and image file management. Detect and clean duplicates by filename *or* true file content, delete safely or permanently, and manage orphaned images—all with intuitive interface and comprehensive tooltips.
 
 ---
 
 ## Features
 
-- **Recursive Duplicate Scan**: Find duplicate ROM/archive files by normalized base name (ignoring version, region, etc.) in a folder and all subfolders.
-- **Smart Select System**:
-  - Intelligently aggregates similar files into groups.
-  - “Smart Select” marks best version to keep, and others to remove (with color cues: **Green = Keep, Red/Strike = Delete**).
-  - Quickly toggle or override suggestions with a click.
-- **Language Preference**: Prioritize which language/region to keep in each group.
-- **File-type and Sub-folder Filtering**: Limit search/filter by file-type category or inclusion of subfolders.
-- **Manual Filter and Marking**:
-  - Search for any name/keyword.
-  - Buttons to bulk “Keep” or “Delete” by filter.
-  - “Reset” to clear marks.
-- **Bulk, Safe Delete**: Delete all files marked for removal in one step (sent to Trash).
-- **Orphaned Image Handling (NEW in 1.2.0)**:
-  - Detects images in `/images/` folder without matching ROM/archive file (“orphaned”).
-  - Optionally moves orphaned images to Trash alongside regular duplicates.
-- **Status and Progress Reporting**:
-  - Progress bar for batch operations
-  - Status line shows duplicate/unique/orphaned counts.
-- **Customizable Display**:
-  - Alternating row colors, dark/light mode, and more—all preferences saved to `.ini`
-  - No distracting grid lines; clear modern appearance
-- **Extensive Tooltips (NEW in 1.2.0)**:
-  - Mouse-over help for nearly every button/setting, ideal for new users
+- **Find duplicates by name or by content!**
+  - **Filename mode (default):** Groups potential duplicates by normalized name (ignoring region, version, “Copy”, etc.).
+  - **Match Size mode (NEW!):** Groups true duplicates by file size and partial content hash, catching duplicates regardless of filename.
+- **Smart Select System:**  
+  - Marks which file to keep (based on language/region/version), others for removal—easy to override.
+- **Permanent Delete Option (NEW!):**
+  - Choose to bypass the Recycle Bin/Trash and delete files instantly, with confirmation for safety.
+- **Delete Orphaned Images:**
+  - Finds and deletes files in the `/images/` folder not paired with any ROM/archive (e.g., unneeded covers/scrapes).
+- **Subfolder, language, and filetype filters**
+- **Batch Operations with Progress Indicators:**  
+  - Progress dialogs during long scans and deletes, with current file display.
+- **Row color alternation & full dark/light mode**
+- **User configuration saved/restored** (including Match Size, Permanent Delete, etc.)
+- **Rich tooltip help for all controls**
 
 ## Usage
 
-1. **Run the program**  
-   - With Python:  
-     ```
-     pip install -r requirements.txt
-     python rom_duplicate_manager.py
-     ```
-   - Or download a [standalone Windows executable](https://github.com/Anach/ROM_Duplicate_Manager/releases/latest).
-2. **Browse** to the folder where your ROMs are kept.
-3. **(Optional)**: Enable/disable subfolder scan, file-type filter, language preference, or the new image/orphan scan feature.
-4. **Scan** for duplicates and orphaned images. See visual grouping and marking.
-5. **Use filters and Smart Select** to mark files for keep or delete.
-6. **Press Delete Selected** — files (and optionally orphaned images) go to Trash.
-7. **Hover mouse** over buttons and fields for quick help/tooltips.
+1. Run with Python:
+   ```
+   pip install -r requirements.txt
+   python rom_duplicate_manager.py
+   ```
+   Or download a [Windows executable from Releases](https://github.com/Anach/ROM_Duplicate_Manager/releases/latest).
+2. Browse/select your ROM folder.
+3. (Optional) Adjust subfolder, filetype, language, “Match Size”, “Permanent Delete”, and “Scan Images” options.
+4. Click “Scan”. Inspect/override Smart Select marks if needed.
+5. Click “Delete Selected” to delete (safely or permanently—your choice).
+6. Hover over any button or setting for instant help.
 
 ## Requirements
 
-- Python 3.x (if running from source)
-- tkinter (standard with Python)
-- send2trash (`pip install send2trash`)
+- Python 3.x
+- `tkinter` (standard)
+- `send2trash` (install with `pip install send2trash`)
 
 ## File Structure
 
-- `rom_duplicate_manager.py` — Main application source
-- `requirements.txt` — Python dependency list
-- `rom_duplicate_manager.ini` — Config/preferences (auto-generated as needed)
-- `rom_duplicate_manager.spec` — PyInstaller config for Windows binary
-- `.gitignore`, `LICENSE`, `README.md`, `CHANGELOG.md`
+- `rom_duplicate_manager.py` — Main code.
+- `requirements.txt` — Python dependencies
+- `rom_duplicate_manager.ini` — User config/prefs (auto-generated)
+- `rom_duplicate_manager.spec` — PyInstaller Windows build script
+- `.gitignore`, `LICENSE`, etc.
 
 ## Platform Support
 
-- Windows, macOS, Linux (Python required except for Windows executable)
+- Windows, macOS, Linux (via Python, or Windows executable)
 
 ## License
 
@@ -72,4 +60,4 @@ MIT License
 
 ---
 
-_Use responsibly on your own files and libraries! Please only use with legally obtained software/ROMs._
+**For managing your own collections only. Use responsibly.**
