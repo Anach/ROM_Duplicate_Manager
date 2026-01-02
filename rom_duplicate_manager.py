@@ -1,5 +1,6 @@
 import os
 import re
+import hashlib
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox, font as tkfont
 from send2trash import send2trash
@@ -16,7 +17,7 @@ def load_config():
         config.read(CONFIG_FILE)
     return config
 
-def save_config(dark_mode, row_colors, language, smart_select, scan_images, match_size):
+def save_config(dark_mode, row_colors, language, smart_select, scan_images, match_size, permanent_delete):
     config = configparser.ConfigParser()
     config['Settings'] = {
         'dark_mode': str(dark_mode),
@@ -24,7 +25,8 @@ def save_config(dark_mode, row_colors, language, smart_select, scan_images, matc
         'language': str(language),
         'smart_select': str(smart_select),
         'scan_images': str(scan_images),
-        'match_size': str(match_size)
+        'match_size': str(match_size),
+        'permanent_delete': str(permanent_delete)
     }
     with open(CONFIG_FILE, 'w') as f:
         config.write(f)
@@ -158,44 +160,102 @@ def extract_languages(filename):
     return languages if languages else {'Unknown'}
 
 # ---------------------
+# Partial hashing for content matching
+# ---------------------
+def get_partial_hash(filepath):
+    """Get a fast partial hash of a file to reduce false positives in size-based matching."""
+    try:
+        size = os.path.getsize(filepath)
+        if size == 0:
+            return "empty"
+
+        # Hash the first and last 64KB of the file
+        chunk_size = 65536
+        hasher = hashlib.md5()
+        with open(filepath, "rb") as f:
+            hasher.update(f.read(chunk_size))
+            if size > chunk_size:
+                try:
+                    f.seek(-chunk_size, os.SEEK_END)
+                    hasher.update(f.read(chunk_size))
+                except OSError:
+                    pass
+        return hasher.hexdigest()
+    except:
+        return None
+
+# ---------------------
 # Scan folder
 # ---------------------
-def scan_folder(folder, recursive=False, extension_filter=None, match_size=False):
-    groups = {}
-
-    def process_file(f, full_path):
-        if extension_filter:
-            _, ext = os.path.splitext(f)
-            if ext.lower() not in extension_filter:
-                return
-
-        if match_size:
-            try:
-                size = os.path.getsize(full_path)
-                _, ext = os.path.splitext(f)
-                base = f"Size: {size:,} bytes ({ext.lower()})"
-            except OSError:
-                base = normalize_filename(f)
-        else:
-            base = normalize_filename(f)
-
-        full_path = full_path.replace('\\', '/')
-        groups.setdefault(base, []).append(full_path)
-
+def scan_folder(folder, recursive=False, extension_filter=None, match_size=False, progress_callback=None):
+    file_list = []
     if recursive:
         for root, dirs, files in os.walk(folder):
             for f in files:
-                full_path = os.path.join(root, f)
-                process_file(f, full_path)
+                if extension_filter:
+                    _, ext = os.path.splitext(f)
+                    if ext.lower() not in extension_filter:
+                        continue
+                file_list.append(os.path.join(root, f).replace('\\', '/'))
     else:
         if os.path.exists(folder):
             for f in os.listdir(folder):
-                full_path = os.path.join(folder, f)
+                full_path = os.path.join(folder, f).replace('\\', '/')
                 if os.path.isfile(full_path):
-                    process_file(f, full_path)
+                    if extension_filter:
+                        _, ext = os.path.splitext(f)
+                        if ext.lower() not in extension_filter:
+                            continue
+                    file_list.append(full_path)
 
-    duplicates = {k:v for k,v in groups.items() if len(v) > 1}
-    non_duplicates = {k:v for k,v in groups.items() if len(v) == 1}
+    groups = {}
+    total = len(file_list)
+    if total == 0:
+        return {}, {}
+
+    if not match_size:
+        for i, full_path in enumerate(file_list):
+            if progress_callback:
+                progress_callback(i + 1, total, f"Scanning: {os.path.basename(full_path)}")
+            base = normalize_filename(os.path.basename(full_path))
+            groups.setdefault(base, []).append(full_path)
+    else:
+        # Optimized size-based grouping
+        size_map = {}
+        for i, full_path in enumerate(file_list):
+            if progress_callback:
+                progress_callback(i + 1, total, f"Checking size: {os.path.basename(full_path)}")
+            try:
+                size = os.path.getsize(full_path)
+                size_map.setdefault(size, []).append(full_path)
+            except:
+                pass
+
+        # Now only hash files that share a size
+        hashed_count = 0
+        potential_dupes = [paths for paths in size_map.values() if len(paths) > 1]
+        total_to_hash = sum(len(p) for p in potential_dupes)
+
+        for size, paths in size_map.items():
+            if len(paths) == 1:
+                full_path = paths[0]
+                base = normalize_filename(os.path.basename(full_path))
+                groups.setdefault(base, []).append(full_path)
+            else:
+                for full_path in paths:
+                    hashed_count += 1
+                    if progress_callback:
+                        progress_callback(hashed_count, total_to_hash, f"Hashing: {os.path.basename(full_path)}")
+                    h = get_partial_hash(full_path)
+                    _, ext = os.path.splitext(full_path)
+                    if h:
+                        base = f"Size: {size:,} bytes ({ext.lower()}) [Hash: {h[:8]}]"
+                    else:
+                        base = f"Size: {size:,} bytes ({ext.lower()})"
+                    groups.setdefault(base, []).append(full_path)
+
+    duplicates = {k: v for k, v in groups.items() if len(v) > 1}
+    non_duplicates = {k: v for k, v in groups.items() if len(v) == 1}
 
     return duplicates, non_duplicates
 
@@ -298,6 +358,7 @@ class DuplicateManager(tk.Tk):
         smart_select_saved = config.getboolean('Settings', 'smart_select', fallback=False)
         scan_images_saved = config.getboolean('Settings', 'scan_images', fallback=False)
         match_size_saved = config.getboolean('Settings', 'match_size', fallback=False)
+        permanent_delete_saved = config.getboolean('Settings', 'permanent_delete', fallback=False)
 
         self.dark_mode_enabled = tk.BooleanVar(value=dark_mode_saved)
         self.row_colors = tk.BooleanVar(value=row_colors_saved)
@@ -315,6 +376,7 @@ class DuplicateManager(tk.Tk):
         self.smart_select = tk.BooleanVar(value=smart_select_saved)
         self.scan_images = tk.BooleanVar(value=scan_images_saved)
         self.match_size = tk.BooleanVar(value=match_size_saved)
+        self.permanent_delete = tk.BooleanVar(value=permanent_delete_saved)
         self.include_subfolders = tk.BooleanVar(value=False)
         self.file_type_filter = tk.StringVar(value="Wildcard *.*")
         self.language_filter = tk.StringVar(value=language_saved)
@@ -390,7 +452,7 @@ class DuplicateManager(tk.Tk):
 
         self.match_size_check = tk.Checkbutton(row1, text="Match Size", variable=self.match_size, command=self.on_match_size_toggle)
         self.match_size_check.pack(side='left', padx=2)
-        create_tooltip(self.match_size_check, "Group files by identical file size instead of name")
+        create_tooltip(self.match_size_check, "Group files by identical size and partial content hash instead of name")
 
         # Row 2: Filter and Display controls
         row2 = tk.Frame(self.frame_top)
@@ -457,29 +519,22 @@ class DuplicateManager(tk.Tk):
         tree_frame.grid_columnconfigure(0, weight=1)
 
         self.button_frame = tk.Frame(self)
-        self.button_frame.pack(pady=5)
+        self.button_frame.pack(pady=(0, 5))
 
         self.status_label = tk.Label(self.button_frame, text="", font=tkfont.Font(size=9, weight='bold'))
-        self.status_label.pack(side='left', padx=20)
+        self.status_label.pack(side='top', pady=2)
         create_tooltip(self.status_label, "Summary of scan results")
 
-        self.delete_button = tk.Button(self.button_frame, text="Delete Selected", command=self.delete_selected)
+        self.button_row = tk.Frame(self.button_frame)
+        self.button_row.pack(side='top', pady=2)
+
+        self.delete_button = tk.Button(self.button_row, text="Delete Selected", command=self.delete_selected)
         self.delete_button.pack(side='left', padx=5)
         self.update_delete_button_tooltip()
 
-        # Progress bar for deletions
-        self.progress_frame = tk.Frame(self)
-        self.progress_frame.pack(fill='x', padx=10, pady=5)
-        self.progress_frame.pack_propagate(False)
-        self.progress_frame.config(height=60)
-
-        # Inner frame to center and limit width to 50%
-        self.progress_inner = tk.Frame(self.progress_frame)
-        self.progress_inner.place(relx=0.5, rely=0.5, anchor='center', relwidth=0.5)
-
-        self.progress_bar = ttk.Progressbar(self.progress_inner, orient='horizontal',
-                                          mode='determinate', style="Blue.Horizontal.TProgressbar")
-        self.progress_label = tk.Label(self.progress_inner, text="")
+        self.perm_del_check = tk.Checkbutton(self.button_row, text="Permanent Delete", variable=self.permanent_delete, command=self.on_permanent_delete_toggle)
+        self.perm_del_check.pack(side='left', padx=5)
+        create_tooltip(self.perm_del_check, "Bypass the recycle bin and delete files permanently")
 
         self.duplicates = {}
         self.non_duplicates = {}
@@ -494,7 +549,8 @@ class DuplicateManager(tk.Tk):
     def save_settings(self):
         save_config(self.dark_mode_enabled.get(), self.row_colors.get(),
                     self.language_filter.get(), self.smart_select.get(),
-                    self.scan_images.get(), self.match_size.get())
+                    self.scan_images.get(), self.match_size.get(),
+                    self.permanent_delete.get())
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
@@ -538,13 +594,47 @@ class DuplicateManager(tk.Tk):
         if not folder or not os.path.isdir(folder):
             return
 
+        # Create progress popup
+        progress_popup = tk.Toplevel(self)
+        progress_popup.title("Scanning...")
+        progress_popup.geometry("400x120")
+        progress_popup.resizable(False, False)
+        progress_popup.transient(self)
+        progress_popup.grab_set()
+
+        # Center popup
+        x = self.winfo_x() + (self.winfo_width() // 2) - 200
+        y = self.winfo_y() + (self.winfo_height() // 2) - 60
+        progress_popup.geometry(f"+{x}+{y}")
+
+        is_dark = self.dark_mode_enabled.get()
+        popup_bg = self.dark_bg if is_dark else self.light_bg
+        popup_fg = self.dark_fg if is_dark else 'black'
+        progress_popup.configure(bg=popup_bg)
+
+        lbl = tk.Label(progress_popup, text="Starting scan...", bg=popup_bg, fg=popup_fg, font=("TkDefaultFont", 9))
+        lbl.pack(pady=(20, 10), padx=20, fill='x')
+
+        pb = ttk.Progressbar(progress_popup, orient='horizontal', length=360, mode='determinate', style="Blue.Horizontal.TProgressbar")
+        pb.pack(padx=20, pady=10)
+
+        def progress_callback(current, total, msg):
+            pb['maximum'] = total
+            pb['value'] = current
+            display_msg = msg[:57] + "..." if len(msg) > 60 else msg
+            lbl.config(text=display_msg)
+            progress_popup.update()
+
         ext_filter = self.file_types.get(self.file_type_filter.get())
         self.duplicates, self.non_duplicates = scan_folder(
             folder,
             self.include_subfolders.get(),
             ext_filter,
-            self.match_size.get()
+            self.match_size.get(),
+            progress_callback
         )
+
+        progress_popup.destroy()
 
         status = f"Found {len(self.duplicates)} duplicate group(s) and {len(self.non_duplicates)} unique file(s)."
 
@@ -570,6 +660,17 @@ class DuplicateManager(tk.Tk):
 
     def on_match_size_toggle(self):
         self.scan()
+        self.save_settings()
+
+    def on_permanent_delete_toggle(self):
+        if self.permanent_delete.get():
+            confirm = messagebox.askyesno(
+                "Warning",
+                "Enabling Permanent Delete will bypass the Recycle Bin.\n\nFiles will be deleted immediately and cannot be recovered.\n\nAre you sure you want to enable this?",
+                icon='warning'
+            )
+            if not confirm:
+                self.permanent_delete.set(False)
         self.save_settings()
 
     def update_delete_button_tooltip(self):
@@ -799,10 +900,6 @@ class DuplicateManager(tk.Tk):
                              lightcolor=vsc_blue,
                              darkcolor=vsc_blue)
 
-        # Label colors match theme, no background
-        self.progress_label.config(bg=bg, fg=fg, anchor='center')
-        self.progress_inner.config(bg=bg)
-
         self.style.configure('Treeview', background=bg, fieldbackground=bg, foreground=fg, rowheight=25, borderwidth=0, relief='flat')
         self.style.map('Treeview', background=[('selected', self.selection_bg)], foreground=[('selected', sel_fg)])
         if self.row_colors.get():
@@ -862,23 +959,48 @@ class DuplicateManager(tk.Tk):
             return
 
         total_to_delete = len(file_items) + len(orphaned_images)
+        is_perm = self.permanent_delete.get()
 
-        if file_items and orphaned_images:
-            msg = f"You are about to move {len(file_items)} marked file(s) AND {len(orphaned_images)} orphaned image(s) to the recycle bin"
-        elif file_items:
-            msg = f"You are about to move {len(file_items)} marked file(s) to the recycle bin"
+        if is_perm:
+            msg = f"WARNING: You are about to PERMANENTLY delete {total_to_delete} item(s).\n\nThis cannot be undone! Proceed?"
+            confirm = messagebox.askyesno("Confirm Permanent Delete", msg, icon='warning')
         else:
-            msg = f"You are about to move {len(orphaned_images)} orphaned image(s) to the recycle bin"
+            if file_items and orphaned_images:
+                msg = f"You are about to move {len(file_items)} marked file(s) AND {len(orphaned_images)} orphaned image(s) to the recycle bin"
+            elif file_items:
+                msg = f"You are about to move {len(file_items)} marked file(s) to the recycle bin"
+            else:
+                msg = f"You are about to move {len(orphaned_images)} orphaned image(s) to the recycle bin"
+            confirm = messagebox.askokcancel("Confirm Delete", msg)
 
-        confirm = messagebox.askokcancel("Confirm Delete", msg)
         if not confirm: return
 
-        # Show progress label above progress bar, both centered and 50% width
-        self.progress_label.pack(side='top', fill='x')
-        self.progress_bar.pack(side='top', fill='x', pady=(5, 0))
+        # Create progress popup
+        progress_popup = tk.Toplevel(self)
+        progress_popup.title("Deleting Files...")
+        progress_popup.geometry("400x120")
+        progress_popup.resizable(False, False)
+        progress_popup.transient(self)
+        progress_popup.grab_set()
 
-        self.progress_bar['maximum'] = total_to_delete
-        self.progress_bar['value'] = 0
+        # Center popup
+        x = self.winfo_x() + (self.winfo_width() // 2) - 200
+        y = self.winfo_y() + (self.winfo_height() // 2) - 60
+        progress_popup.geometry(f"+{x}+{y}")
+
+        is_dark = self.dark_mode_enabled.get()
+        popup_bg = self.dark_bg if is_dark else self.light_bg
+        popup_fg = self.dark_fg if is_dark else 'black'
+        progress_popup.configure(bg=popup_bg)
+
+        lbl = tk.Label(progress_popup, text="Starting deletion...", bg=popup_bg, fg=popup_fg, font=("TkDefaultFont", 9))
+        lbl.pack(pady=(20, 10), padx=20, fill='x')
+
+        pb = ttk.Progressbar(progress_popup, orient='horizontal', length=360, mode='determinate', style="Blue.Horizontal.TProgressbar")
+        pb.pack(padx=20, pady=10)
+        pb['maximum'] = total_to_delete
+        pb['value'] = 0
+
         deleted_count = 0
         parents_to_check = set()
 
@@ -889,13 +1011,16 @@ class DuplicateManager(tk.Tk):
                 path = values[0]
                 filename = os.path.basename(path)
                 display_name = filename[:57] + "..." if len(filename) > 60 else filename
-                self.progress_label.config(text=f"Deleting: {display_name}")
-                self.progress_bar['value'] = i + 1
-                self.update_idletasks()
+                lbl.config(text=f"Deleting: {display_name}")
+                pb['value'] = i + 1
+                progress_popup.update()
                 path = path.replace('/', os.sep)
                 if path and os.path.exists(path):
                     try:
-                        send2trash(path)
+                        if is_perm:
+                            os.remove(path)
+                        else:
+                            send2trash(path)
                         deleted_count += 1
                         parent = self.tree.parent(item)
                         parents_to_check.add(parent)
@@ -913,17 +1038,20 @@ class DuplicateManager(tk.Tk):
         for i, path in enumerate(orphaned_images):
             filename = os.path.basename(path)
             display_name = filename[:57] + "..." if len(filename) > 60 else filename
-            self.progress_label.config(text=f"Deleting Image: {display_name}")
-            self.progress_bar['value'] = start_idx + i + 1
-            self.update_idletasks()
+            lbl.config(text=f"Deleting Image: {display_name}")
+            pb['value'] = start_idx + i + 1
+            progress_popup.update()
             try:
-                send2trash(path.replace('/', os.sep))
+                p = path.replace('/', os.sep)
+                if is_perm:
+                    os.remove(p)
+                else:
+                    send2trash(p)
                 deleted_count += 1
             except Exception as e:
                 messagebox.showerror("Error", f"Failed to delete {path}: {str(e)}")
 
-        self.progress_bar.pack_forget()
-        self.progress_label.pack_forget()
+        progress_popup.destroy()
 
         for parent in parents_to_check:
             children = self.tree.get_children(parent)
