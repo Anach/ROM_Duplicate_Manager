@@ -16,14 +16,15 @@ def load_config():
         config.read(CONFIG_FILE)
     return config
 
-def save_config(dark_mode, row_colors, language, smart_select, scan_images):
+def save_config(dark_mode, row_colors, language, smart_select, scan_images, match_size):
     config = configparser.ConfigParser()
     config['Settings'] = {
         'dark_mode': str(dark_mode),
         'row_colors': str(row_colors),
         'language': str(language),
         'smart_select': str(smart_select),
-        'scan_images': str(scan_images)
+        'scan_images': str(scan_images),
+        'match_size': str(match_size)
     }
     with open(CONFIG_FILE, 'w') as f:
         config.write(f)
@@ -33,7 +34,15 @@ def save_config(dark_mode, row_colors, language, smart_select, scan_images):
 # ---------------------
 def normalize_filename(filename):
     name, _ = os.path.splitext(filename)
-    name = re.sub(r'\s*\(.*?\)$', '', name).strip()
+    while True:
+        old_name = name
+        # Remove " - Copy" or " - Copy (n)" at the end
+        name = re.sub(r'\s*-\s*Copy(?:\s*\(\d+\))?$', '', name, flags=re.IGNORECASE)
+        # Remove trailing parentheses or brackets
+        name = re.sub(r'\s*[\(\[].*?[\)\]]$', '', name)
+        name = name.strip()
+        if name == old_name:
+            break
     return name
 
 # ---------------------
@@ -151,7 +160,7 @@ def extract_languages(filename):
 # ---------------------
 # Scan folder
 # ---------------------
-def scan_folder(folder, recursive=False, extension_filter=None):
+def scan_folder(folder, recursive=False, extension_filter=None, match_size=False):
     groups = {}
 
     def process_file(f, full_path):
@@ -160,7 +169,16 @@ def scan_folder(folder, recursive=False, extension_filter=None):
             if ext.lower() not in extension_filter:
                 return
 
-        base = normalize_filename(f)
+        if match_size:
+            try:
+                size = os.path.getsize(full_path)
+                _, ext = os.path.splitext(f)
+                base = f"Size: {size:,} bytes ({ext.lower()})"
+            except OSError:
+                base = normalize_filename(f)
+        else:
+            base = normalize_filename(f)
+
         full_path = full_path.replace('\\', '/')
         groups.setdefault(base, []).append(full_path)
 
@@ -170,10 +188,11 @@ def scan_folder(folder, recursive=False, extension_filter=None):
                 full_path = os.path.join(root, f)
                 process_file(f, full_path)
     else:
-        for f in os.listdir(folder):
-            full_path = os.path.join(folder, f)
-            if os.path.isfile(full_path):
-                process_file(f, full_path)
+        if os.path.exists(folder):
+            for f in os.listdir(folder):
+                full_path = os.path.join(folder, f)
+                if os.path.isfile(full_path):
+                    process_file(f, full_path)
 
     duplicates = {k:v for k,v in groups.items() if len(v) > 1}
     non_duplicates = {k:v for k,v in groups.items() if len(v) == 1}
@@ -278,6 +297,7 @@ class DuplicateManager(tk.Tk):
         language_saved = config.get('Settings', 'language', fallback='Any')
         smart_select_saved = config.getboolean('Settings', 'smart_select', fallback=False)
         scan_images_saved = config.getboolean('Settings', 'scan_images', fallback=False)
+        match_size_saved = config.getboolean('Settings', 'match_size', fallback=False)
 
         self.dark_mode_enabled = tk.BooleanVar(value=dark_mode_saved)
         self.row_colors = tk.BooleanVar(value=row_colors_saved)
@@ -294,6 +314,7 @@ class DuplicateManager(tk.Tk):
         self.filter_text = tk.StringVar()
         self.smart_select = tk.BooleanVar(value=smart_select_saved)
         self.scan_images = tk.BooleanVar(value=scan_images_saved)
+        self.match_size = tk.BooleanVar(value=match_size_saved)
         self.include_subfolders = tk.BooleanVar(value=False)
         self.file_type_filter = tk.StringVar(value="Wildcard *.*")
         self.language_filter = tk.StringVar(value=language_saved)
@@ -367,9 +388,9 @@ class DuplicateManager(tk.Tk):
         self.scan_images_check.pack(side='left', padx=2)
         create_tooltip(self.scan_images_check, "Enable scanning and automatic deletion of orphaned images in the /images/ sub-folder")
 
-        self.status_label = tk.Label(row1, text="", font=tkfont.Font(size=9, weight='bold'))
-        self.status_label.pack(side='left', padx=10)
-        create_tooltip(self.status_label, "Summary of scan results")
+        self.match_size_check = tk.Checkbutton(row1, text="Match Size", variable=self.match_size, command=self.on_match_size_toggle)
+        self.match_size_check.pack(side='left', padx=2)
+        create_tooltip(self.match_size_check, "Group files by identical file size instead of name")
 
         # Row 2: Filter and Display controls
         row2 = tk.Frame(self.frame_top)
@@ -438,6 +459,10 @@ class DuplicateManager(tk.Tk):
         self.button_frame = tk.Frame(self)
         self.button_frame.pack(pady=5)
 
+        self.status_label = tk.Label(self.button_frame, text="", font=tkfont.Font(size=9, weight='bold'))
+        self.status_label.pack(side='left', padx=20)
+        create_tooltip(self.status_label, "Summary of scan results")
+
         self.delete_button = tk.Button(self.button_frame, text="Delete Selected", command=self.delete_selected)
         self.delete_button.pack(side='left', padx=5)
         self.update_delete_button_tooltip()
@@ -469,7 +494,7 @@ class DuplicateManager(tk.Tk):
     def save_settings(self):
         save_config(self.dark_mode_enabled.get(), self.row_colors.get(),
                     self.language_filter.get(), self.smart_select.get(),
-                    self.scan_images.get())
+                    self.scan_images.get(), self.match_size.get())
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
@@ -514,7 +539,12 @@ class DuplicateManager(tk.Tk):
             return
 
         ext_filter = self.file_types.get(self.file_type_filter.get())
-        self.duplicates, self.non_duplicates = scan_folder(folder, self.include_subfolders.get(), ext_filter)
+        self.duplicates, self.non_duplicates = scan_folder(
+            folder,
+            self.include_subfolders.get(),
+            ext_filter,
+            self.match_size.get()
+        )
 
         status = f"Found {len(self.duplicates)} duplicate group(s) and {len(self.non_duplicates)} unique file(s)."
 
@@ -535,6 +565,10 @@ class DuplicateManager(tk.Tk):
 
     def on_scan_images_toggle(self):
         self.update_delete_button_tooltip()
+        self.scan()
+        self.save_settings()
+
+    def on_match_size_toggle(self):
         self.scan()
         self.save_settings()
 
@@ -752,6 +786,9 @@ class DuplicateManager(tk.Tk):
         bg = self.dark_bg if is_dark else 'white'
         fg = 'white' if is_dark else 'black'
 
+        # Use white text for selection in dark mode for better visibility
+        sel_fg = 'white' if is_dark else 'black'
+
         trough_color = '#1a1a1a' if is_dark else '#e0e0e0'
         vsc_blue = '#007acc'
 
@@ -767,7 +804,7 @@ class DuplicateManager(tk.Tk):
         self.progress_inner.config(bg=bg)
 
         self.style.configure('Treeview', background=bg, fieldbackground=bg, foreground=fg, rowheight=25, borderwidth=0, relief='flat')
-        self.style.map('Treeview', background=[('selected', bg)], foreground=[('selected', '')])
+        self.style.map('Treeview', background=[('selected', self.selection_bg)], foreground=[('selected', sel_fg)])
         if self.row_colors.get():
             if self.dark_mode_enabled.get():
                 self.tree.tag_configure('oddrow', background='#3d3d3d')
@@ -784,8 +821,8 @@ class DuplicateManager(tk.Tk):
         row_count = 0
         for parent in self.tree.get_children():
             p_tags = list(self.tree.item(parent, 'tags'))
+            # Remove alternating colors from parents to allow selection background to show correctly
             p_tags = [t for t in p_tags if t not in ('oddrow', 'evenrow')]
-            p_tags.append('evenrow' if row_count % 2 == 0 else 'oddrow')
             self.tree.item(parent, tags=tuple(p_tags))
             row_count += 1
             for child in self.tree.get_children(parent):
@@ -915,7 +952,7 @@ class DuplicateManager(tk.Tk):
         for widget in self.winfo_children(): self.apply_dark_mode_recursive(widget)
         self.style.configure('Treeview', background=self.dark_bg, foreground=self.dark_fg, fieldbackground=self.dark_bg, bordercolor='#555555', lightcolor='#555555', darkcolor='#555555')
         self.style.configure('Treeview.Heading', background='#1a1a1a', foreground=self.dark_fg, relief='raised', borderwidth=1)
-        self.style.map('Treeview', background=[('selected', self.selection_bg)], foreground=[('selected', self.selection_fg)])
+        self.style.map('Treeview', background=[('selected', self.selection_bg)], foreground=[('selected', 'white')])
         self.style.map('Treeview.Heading', background=[('active', '#404040')])
         self.update_tag_colors()
         self.apply_display_settings()
@@ -936,7 +973,7 @@ class DuplicateManager(tk.Tk):
         for widget in self.winfo_children(): self.apply_light_mode_recursive(widget)
         self.style.configure('Treeview', background='white', foreground='black', fieldbackground='white', bordercolor='#999999', lightcolor='#999999', darkcolor='#999999')
         self.style.configure('Treeview.Heading', background='#e0e0e0', foreground='black', relief='raised', borderwidth=1)
-        self.style.map('Treeview', background=[('selected', self.selection_bg)], foreground=[('selected', self.selection_fg)])
+        self.style.map('Treeview', background=[('selected', self.selection_bg)], foreground=[('selected', 'black')])
         self.style.map('Treeview.Heading', background=[('active', '#d0d0d0')])
         self.update_tag_colors()
         self.apply_display_settings()
