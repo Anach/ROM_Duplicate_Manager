@@ -1,10 +1,29 @@
 import os
 import re
+import fnmatch
 import hashlib
+import subprocess
+import math
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox, font as tkfont
 from send2trash import send2trash
 import configparser
+import base64
+from io import BytesIO
+
+# ---------------------
+# Classic Pacman Icon
+# ---------------------
+PACMAN_ICON_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABq0lEQVR4nO2bYZKDIAyFkzdcpvc/TI/DjrvT3Z1WBSQJifD9q6LvvQwgxZFosVgsFvPClmL5Sbm2LT9svLGn0COKwV5DWxWDowTXKgQoYHhJPUQML6nLow2MHhK4Q/geP7AU0+aKL1iIWNLqL2kZ4cfnsfwkd0Cjunvhz44PXXKT8E23kDn/NWXmYT2h5skAzfDf1779frWzoMY3pMRaQ1kVobsA2fms3+sf0oLvY35vDrCkNA8kFdHBoVuWxulO3f8o9Jbj6BxLFqBlYpN8FPbsDSQ5Gz+haoogEV59QyRf7P6lcL3ht+BXwh/lSX12DsXE/wtobYwmUsJTNz/VIIdPAKt3Aqo9wHNoVwXgQcF/9cnREBhRDJAjtqJbFx7kkFchJIthug6Q5L9xjSECCoTGEOGSIDmnt1eAglMzX5ydA92IK0OEa25KgSkNEdDNMd8UjQa8r9V7mX4IlECxReBeIPZuMGIRav1C46ajafEJmhy0XuC9F7T6g4WIFVd8wVJMk6t+WEI88hY6PJgYqQsZK/ZFkNJjUmDa7wX2mPKLkUjfDC0WiwXNzBcIwbWZE7SXrAAAAABJRU5ErkJggg=="
+
+def get_icon_photo():
+    """Convert base64 icon to tkinter PhotoImage"""
+    try:
+        icon_data = base64.b64decode(PACMAN_ICON_BASE64)
+        return tk.PhotoImage(data=icon_data)
+    except Exception as e:
+        print(f"Failed to load icon: {e}")
+        return None
 
 # ---------------------
 # Config file handling
@@ -17,7 +36,7 @@ def load_config():
         config.read(CONFIG_FILE)
     return config
 
-def save_config(dark_mode, row_colors, language, smart_select, scan_images, match_size, permanent_delete):
+def save_config(dark_mode, row_colors, language, smart_select, scan_images, match_size, permanent_delete, use_regex, file_type, search_in_path):
     config = configparser.ConfigParser()
     config['Settings'] = {
         'dark_mode': str(dark_mode),
@@ -26,7 +45,10 @@ def save_config(dark_mode, row_colors, language, smart_select, scan_images, matc
         'smart_select': str(smart_select),
         'scan_images': str(scan_images),
         'match_size': str(match_size),
-        'permanent_delete': str(permanent_delete)
+        'permanent_delete': str(permanent_delete),
+        'use_regex': str(use_regex),
+        'file_type': str(file_type),
+        'search_in_path': str(search_in_path)
     }
     with open(CONFIG_FILE, 'w') as f:
         config.write(f)
@@ -100,7 +122,6 @@ def extract_version(filename):
             except ValueError: pass
 
     # Return a combined tuple for comparison.
-    # Date is most significant, then explicit version, then proto version, then others.
     return date_val + v_val + proto_val + other_val
 
 # ---------------------
@@ -350,6 +371,11 @@ class DuplicateManager(tk.Tk):
         self.title("ROM Duplicate Manager")
         self.geometry("1100x600")
 
+        # Set the 16-bit Pacman icon
+        icon = get_icon_photo()
+        if icon:
+            self.iconphoto(False, icon)
+
         config = load_config()
         dark_mode_saved = config.getboolean('Settings', 'dark_mode', fallback=False)
         row_colors_saved = config.getboolean('Settings', 'row_colors',
@@ -359,6 +385,9 @@ class DuplicateManager(tk.Tk):
         scan_images_saved = config.getboolean('Settings', 'scan_images', fallback=False)
         match_size_saved = config.getboolean('Settings', 'match_size', fallback=False)
         permanent_delete_saved = config.getboolean('Settings', 'permanent_delete', fallback=False)
+        use_regex_saved = config.getboolean('Settings', 'use_regex', fallback=False)
+        file_type_saved = config.get('Settings', 'file_type', fallback='Archive')
+        search_in_path_saved = config.getboolean('Settings', 'search_in_path', fallback=False)
 
         self.dark_mode_enabled = tk.BooleanVar(value=dark_mode_saved)
         self.row_colors = tk.BooleanVar(value=row_colors_saved)
@@ -377,13 +406,14 @@ class DuplicateManager(tk.Tk):
         self.scan_images = tk.BooleanVar(value=scan_images_saved)
         self.match_size = tk.BooleanVar(value=match_size_saved)
         self.permanent_delete = tk.BooleanVar(value=permanent_delete_saved)
+        self.use_regex = tk.BooleanVar(value=use_regex_saved)
+        self.search_in_path = tk.BooleanVar(value=search_in_path_saved)
         self.include_subfolders = tk.BooleanVar(value=False)
-        self.file_type_filter = tk.StringVar(value="Wildcard *.*")
+        self.file_type_filter = tk.StringVar(value=file_type_saved)
         self.language_filter = tk.StringVar(value=language_saved)
 
         # File type categories
         self.file_types = {
-            "Wildcard *.*": None,
             "Archive": {".zip", ".7z", ".jar", ".lha", ".lzh", ".rar", ".tar", ".gz"},
             "Disk Image": {".iso", ".bin", ".cue", ".img", ".mdf", ".mds", ".nrg", ".ccd", ".chd", ".gdi", ".cdi"},
             "Images": {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".tif"},
@@ -395,7 +425,8 @@ class DuplicateManager(tk.Tk):
                 ".nes", ".fds", ".smc", ".sfc", ".fig", ".swc", ".n64", ".v64", ".z64", ".pbp", ".cso", ".neo",
                 ".pce", ".sgx", ".ws", ".wsc", ".col", ".int", ".vec", ".min", ".sv", ".gg", ".ngp", ".ngc",
                 ".vb", ".32x", ".p8", ".png", ".solarus", ".tic", ".love", ".scummvm", ".ldb", ".nx", ".v32"
-            }
+            },
+            "Wildcard *.*": None
         }
 
         self.filter_text.trace_add('write', self.on_filter_change)
@@ -412,7 +443,7 @@ class DuplicateManager(tk.Tk):
         self.folder_entry = tk.Entry(row1, textvariable=self.folder, width=30)
         self.folder_entry.pack(side='left', padx=5)
         self.folder_entry.bind('<Return>', lambda e: self.scan())
-        create_tooltip(self.folder_entry, "Current folder path. Press Enter to rescan.")
+        create_tooltip(self.folder_entry, "Current folder path. Press Enter or Ctrl+R to rescan.")
 
         self.browse_btn = tk.Button(row1, text="Browse", command=self.browse_folder)
         self.browse_btn.pack(side='left')
@@ -422,13 +453,13 @@ class DuplicateManager(tk.Tk):
         self.subfolders_check.pack(side='left', padx=5)
         create_tooltip(self.subfolders_check, "Include sub-folders in the scan")
 
-        tk.Label(row1, text="Type:").pack(side='left', padx=2)
+        tk.Label(row1, text="File Type:").pack(side='left', padx=2)
         self.type_combo = ttk.Combobox(row1, textvariable=self.file_type_filter,
                                        values=list(self.file_types.keys()),
                                        state='readonly', width=12)
         self.type_combo.pack(side='left', padx=2)
-        self.type_combo.bind('<<ComboboxSelected>>', lambda e: self.scan())
-        create_tooltip(self.type_combo, "Filter files by category")
+        self.type_combo.bind('<<ComboboxSelected>>', self.on_file_type_change)
+        create_tooltip(self.type_combo, "Filter files by file-types")
 
         ttk.Separator(row1, orient='vertical').pack(side='left', fill='y', padx=10)
 
@@ -442,10 +473,6 @@ class DuplicateManager(tk.Tk):
         self.lang_combo.bind('<<ComboboxSelected>>', self.on_language_change)
         create_tooltip(self.lang_combo, "Preferred language for Smart Select suggestions")
 
-        self.smart_select_check = tk.Checkbutton(row1, text="Smart Select", variable=self.smart_select)
-        self.smart_select_check.pack(side='left', padx=2)
-        create_tooltip(self.smart_select_check, "Automatically mark duplicates for removal based on priority")
-
         self.scan_images_check = tk.Checkbutton(row1, text="Scan Images", variable=self.scan_images, command=self.on_scan_images_toggle)
         self.scan_images_check.pack(side='left', padx=2)
         create_tooltip(self.scan_images_check, "Enable scanning and automatic deletion of orphaned images in the /images/ sub-folder")
@@ -454,14 +481,28 @@ class DuplicateManager(tk.Tk):
         self.match_size_check.pack(side='left', padx=2)
         create_tooltip(self.match_size_check, "Group files by identical size and partial content hash instead of name")
 
+        ttk.Separator(row1, orient='vertical').pack(side='left', fill='y', padx=10)
+
+        self.smart_select_check = tk.Checkbutton(row1, text="Smart Select", variable=self.smart_select)
+        self.smart_select_check.pack(side='left', padx=2)
+        create_tooltip(self.smart_select_check, "Automatically mark duplicates for removal based on priority")
+
         # Row 2: Filter and Display controls
         row2 = tk.Frame(self.frame_top)
         row2.pack(fill='x', padx=2, pady=2)
 
         tk.Label(row2, text="Filter:").pack(side='left', padx=5)
-        self.filter_entry = tk.Entry(row2, textvariable=self.filter_text, width=15)
+        self.filter_entry = tk.Entry(row2, textvariable=self.filter_text, width=20)
         self.filter_entry.pack(side='left', padx=5)
-        create_tooltip(self.filter_entry, "Filter the list by filename")
+        create_tooltip(self.filter_entry, "Filter the list by filename (Ctrl+F to focus)")
+
+        self.regex_check = tk.Checkbutton(row2, text="Regex", variable=self.use_regex, command=self.on_regex_toggle)
+        self.regex_check.pack(side='left', padx=2)
+        create_tooltip(self.regex_check, "Use Regular Expressions for filtering")
+
+        self.path_search_check = tk.Checkbutton(row2, text="Include Path", variable=self.search_in_path, command=self.on_filter_change)
+        self.path_search_check.pack(side='left', padx=2)
+        create_tooltip(self.path_search_check, "Include the full file path when filtering")
 
         self.clear_btn = tk.Button(row2, text="Clear", command=self.clear_filter)
         self.clear_btn.pack(side='left', padx=2)
@@ -504,8 +545,8 @@ class DuplicateManager(tk.Tk):
         vsb.config(command=self.tree.yview)
         hsb.config(command=self.tree.xview)
 
-        self.tree.heading('#0', text='Filename')
-        self.tree.heading('path', text='Full Path')
+        self.tree.heading('#0', text='Filename', command=lambda: self.sort_tree('#0', False))
+        self.tree.heading('path', text='Full Path', command=lambda: self.sort_tree('path', False))
         self.tree.column('#0', width=350)
         self.tree.column('path', width=700)
 
@@ -513,7 +554,24 @@ class DuplicateManager(tk.Tk):
         vsb.grid(row=0, column=1, sticky='ns')
         hsb.grid(row=1, column=0, sticky='ew')
 
-        self.tree.bind('<Button-1>', self.on_tree_click)
+        self.tree.bind('<Double-1>', self.on_tree_double_click)
+        self.tree.bind('<Button-3>', self.show_context_menu)
+
+        # Keyboard Shortcuts
+        self.bind('<Control-f>', lambda e: self.filter_entry.focus_set())
+        self.bind('<Control-r>', lambda e: self.scan())
+        self.tree.bind('<space>', self.on_space_press)
+        self.tree.bind('<Delete>', lambda e: self.mark_selected_delete())
+
+        # Context Menu
+        self.context_menu = tk.Menu(self, tearoff=0)
+        self.context_menu.add_command(label="Open File Location", command=self.open_file_location)
+        self.context_menu.add_command(label="Open File", command=self.open_file)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Toggle Keep/Delete", command=self.toggle_selected_status)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Mark to Keep", command=self.mark_selected_keep)
+        self.context_menu.add_command(label="Mark to Delete", command=self.mark_selected_delete)
 
         tree_frame.grid_rowconfigure(0, weight=1)
         tree_frame.grid_columnconfigure(0, weight=1)
@@ -523,7 +581,7 @@ class DuplicateManager(tk.Tk):
 
         self.status_label = tk.Label(self.button_frame, text="", font=tkfont.Font(size=9, weight='bold'))
         self.status_label.pack(side='top', pady=2)
-        create_tooltip(self.status_label, "Summary of scan results")
+        create_tooltip(self.status_label, "Summary of scan results. Use Space to toggle, Del to mark for removal.")
 
         self.button_row = tk.Frame(self.button_frame)
         self.button_row.pack(side='top', pady=2)
@@ -545,12 +603,15 @@ class DuplicateManager(tk.Tk):
             self.apply_light_mode()
 
         self.apply_display_settings()
+        # Initial Regex mode visual state
+        self.on_regex_toggle()
 
     def save_settings(self):
         save_config(self.dark_mode_enabled.get(), self.row_colors.get(),
                     self.language_filter.get(), self.smart_select.get(),
                     self.scan_images.get(), self.match_size.get(),
-                    self.permanent_delete.get())
+                    self.permanent_delete.get(), self.use_regex.get(),
+                    self.file_type_filter.get(), self.search_in_path.get())
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
@@ -588,6 +649,67 @@ class DuplicateManager(tk.Tk):
                     if match_name not in keep_filenames:
                         orphaned.append(full_path)
         return orphaned
+
+    def format_size(self, size_bytes):
+        """Format bytes into a human-readable string."""
+        if size_bytes == 0:
+            return "0 B"
+        size_name = ("B", "KB", "MB", "GB", "TB")
+        i = int(math.floor(math.log(size_bytes, 1024)))
+        p = math.pow(1024, i)
+        s = round(size_bytes / p, 2)
+        return f"{s} {size_name[i]}"
+
+    def update_status_label(self):
+        """Update the status label with scan results and marked deletion size."""
+        status = f"Found {len(self.duplicates)} duplicate group(s) and {len(self.non_duplicates)} unique file(s)."
+
+        # Calculate size of files marked for removal
+        total_size_to_remove = 0
+        items_to_remove = self.tree.tag_has('to_remove')
+        files_to_delete_paths = set()
+
+        for item in items_to_remove:
+            values = self.tree.item(item, 'values')
+            if values:
+                path = values[0]
+                files_to_delete_paths.add(path)
+                try:
+                    if os.path.exists(path):
+                        total_size_to_remove += os.path.getsize(path)
+                except:
+                    pass
+
+        if self.scan_images.get():
+            # Identify files being kept to find images that will become orphaned
+            all_files = []
+            for paths in self.duplicates.values(): all_files.extend(paths)
+            for paths in self.non_duplicates.values(): all_files.extend(paths)
+
+            keep_filenames = set()
+            for path in all_files:
+                if path not in files_to_delete_paths:
+                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
+
+            # Images that are already orphaned (no matching ROM in the scan at all)
+            orphaned_now = self.get_orphaned_images()
+            if orphaned_now:
+                status += f" | {len(orphaned_now)} orphaned image(s) found."
+
+            # Total images that will be deleted (already orphaned + will become orphaned)
+            orphaned_to_delete = self.get_orphaned_images(keep_filenames)
+            for p in orphaned_to_delete:
+                try:
+                    if os.path.exists(p):
+                        total_size_to_remove += os.path.getsize(p)
+                except:
+                    pass
+
+        if total_size_to_remove > 0:
+            status += f" | Marked for deletion: {self.format_size(total_size_to_remove)}"
+
+        if hasattr(self, 'status_label'):
+            self.status_label.config(text=status)
 
     def scan(self):
         folder = self.folder.get()
@@ -635,22 +757,16 @@ class DuplicateManager(tk.Tk):
         )
 
         progress_popup.destroy()
-
-        status = f"Found {len(self.duplicates)} duplicate group(s) and {len(self.non_duplicates)} unique file(s)."
-
-        if self.scan_images.get():
-            orphaned = self.get_orphaned_images()
-            if orphaned:
-                status += f" | {len(orphaned)} orphaned image(s) found."
-
-        if hasattr(self, 'status_label'):
-            self.status_label.config(text=status)
-
         self.populate_tree()
+        self.update_status_label()
 
     def on_language_change(self, event=None):
         if hasattr(self, 'tree') and self.tree.get_children():
             self.apply_base_suggestions()
+        self.save_settings()
+
+    def on_file_type_change(self, event=None):
+        self.scan()
         self.save_settings()
 
     def on_scan_images_toggle(self):
@@ -707,8 +823,8 @@ class DuplicateManager(tk.Tk):
         self.apply_base_suggestions()
         self.save_settings()
 
-    def on_tree_click(self, event):
-        item = self.tree.identify_row(event.y)
+    def toggle_item_status(self, item):
+        """Toggle the keep/delete status of a specific tree item."""
         if not item: return
         parent = self.tree.parent(item)
         if not parent: return
@@ -722,13 +838,90 @@ class DuplicateManager(tk.Tk):
         elif 'to_remove' in tags:
             tags = ['base', 'manual']
         else:
-            return
+            # For unmarked files (white text), default to 'to_remove'
+            tags = ['to_remove', 'manual']
 
         if row_tag: tags.append(row_tag)
         if filtered_tag: tags.append(filtered_tag)
 
         self.tree.item(item, tags=tuple(tags))
+        self.update_status_label()
+
+    def on_tree_double_click(self, event):
+        """Handle double-click to toggle status."""
+        item = self.tree.identify_row(event.y)
+        self.toggle_item_status(item)
         return "break"
+
+    def on_space_press(self, event):
+        """Handle spacebar press to toggle status of all selected items."""
+        selected = self.tree.selection()
+        for item in selected:
+            self.toggle_item_status(item)
+        return "break"
+
+    def show_context_menu(self, event):
+        """Display the right-click context menu for file items."""
+        item = self.tree.identify_row(event.y)
+        if item:
+            # Select the item if not already selected
+            if item not in self.tree.selection():
+                self.tree.selection_set(item)
+
+            # Only show menu for file items (items with parents)
+            if self.tree.parent(item):
+                # Apply theme to menu
+                is_dark = self.dark_mode_enabled.get()
+                bg = self.dark_bg if is_dark else 'white'
+                fg = self.dark_fg if is_dark else 'black'
+                self.context_menu.configure(bg=bg, fg=fg, activebackground=self.selection_bg, activeforeground='white')
+
+                self.context_menu.post(event.x_root, event.y_root)
+
+    def open_file_location(self):
+        selected = self.tree.selection()
+        if not selected: return
+        path = self.tree.item(selected[0], 'values')[0]
+        path = os.path.normpath(path)
+        if os.path.exists(path):
+            subprocess.run(['explorer', '/select,', path])
+
+    def open_file(self):
+        selected = self.tree.selection()
+        if not selected: return
+        path = self.tree.item(selected[0], 'values')[0]
+        path = os.path.normpath(path)
+        if os.path.exists(path):
+            os.startfile(path)
+
+    def toggle_selected_status(self):
+        """Toggle status of all selected items."""
+        selected = self.tree.selection()
+        for item in selected:
+            self.toggle_item_status(item)
+        self.update_tag_colors()
+
+    def mark_selected_keep(self):
+        for item in self.tree.selection():
+            if not self.tree.parent(item): continue
+            tags = list(self.tree.item(item, 'tags'))
+            tags = [t for t in tags if t not in ('base', 'to_remove')]
+            tags.append('base')
+            if 'manual' not in tags: tags.append('manual')
+            self.tree.item(item, tags=tuple(tags))
+        self.update_tag_colors()
+        self.update_status_label()
+
+    def mark_selected_delete(self):
+        for item in self.tree.selection():
+            if not self.tree.parent(item): continue
+            tags = list(self.tree.item(item, 'tags'))
+            tags = [t for t in tags if t not in ('base', 'to_remove')]
+            tags.append('to_remove')
+            if 'manual' not in tags: tags.append('manual')
+            self.tree.item(item, tags=tuple(tags))
+        self.update_tag_colors()
+        self.update_status_label()
 
     def get_file_priority(self, filepath):
         lang_pref = self.language_filter.get()
@@ -780,6 +973,7 @@ class DuplicateManager(tk.Tk):
                         else: current_tags.append('to_remove')
                     self.tree.item(child, tags=tuple(current_tags))
         self.update_tag_colors()
+        self.update_status_label()
         self.apply_filter()
 
     def populate_tree(self):
@@ -805,37 +999,75 @@ class DuplicateManager(tk.Tk):
     def on_filter_change(self, *args):
         self.apply_filter()
 
+    def on_regex_toggle(self):
+        # Visual indicator for Regex mode
+        is_dark = self.dark_mode_enabled.get()
+        if self.use_regex.get():
+            bg = '#2d3d4d' if is_dark else '#e6f3ff'
+        else:
+            bg = self.dark_bg if is_dark else 'white'
+        self.filter_entry.configure(bg=bg)
+
+        self.apply_filter()
+        self.save_settings()
+
     def clear_filter(self):
         self.filter_text.set('')
         self.apply_filter()
 
+    def check_match(self, pattern, filename, filepath=None):
+        if not pattern:
+            return False
+
+        # Determine what text to match against
+        if self.search_in_path.get() and filepath:
+            text_to_match = filepath.replace(" - Copy", "")
+        else:
+            text_to_match = filename.replace(" - Copy", "")
+
+        if self.use_regex.get():
+            try:
+                return re.search(pattern, text_to_match, re.IGNORECASE) is not None
+            except re.error:
+                return False
+        else:
+            # Support wildcards * and ? in non-regex mode
+            if '*' in pattern or '?' in pattern:
+                return fnmatch.fnmatch(text_to_match.lower(), pattern.lower())
+            else:
+                return pattern.lower() in text_to_match.lower()
+
     def mark_filtered_keep(self):
-        text = self.filter_text.get().lower()
+        text = self.filter_text.get()
         if not text: return
         for parent in self.tree.get_children():
             for child in self.tree.get_children(parent):
-                filename = self.tree.item(child, 'text').lower()
-                if text in filename:
+                filename = self.tree.item(child, 'text')
+                filepath = self.tree.item(child, 'values')[0] if self.tree.item(child, 'values') else None
+                if self.check_match(text, filename, filepath):
                     tags = list(self.tree.item(child, 'tags'))
                     tags = [t for t in tags if t not in ('base', 'to_remove')]
                     tags.append('base')
                     if 'manual' not in tags: tags.append('manual')
                     self.tree.item(child, tags=tuple(tags))
         self.update_tag_colors()
+        self.update_status_label()
 
     def mark_filtered_delete(self):
-        text = self.filter_text.get().lower()
+        text = self.filter_text.get()
         if not text: return
         for parent in self.tree.get_children():
             for child in self.tree.get_children(parent):
-                filename = self.tree.item(child, 'text').lower()
-                if text in filename:
+                filename = self.tree.item(child, 'text')
+                filepath = self.tree.item(child, 'values')[0] if self.tree.item(child, 'values') else None
+                if self.check_match(text, filename, filepath):
                     tags = list(self.tree.item(child, 'tags'))
                     tags = [t for t in tags if t not in ('base', 'to_remove')]
                     tags.append('to_remove')
                     if 'manual' not in tags: tags.append('manual')
                     self.tree.item(child, tags=tuple(tags))
         self.update_tag_colors()
+        self.update_status_label()
 
     def reset_marks(self):
         for parent in self.tree.get_children():
@@ -845,22 +1077,23 @@ class DuplicateManager(tk.Tk):
                 self.tree.item(child, tags=tuple(tags))
         if self.smart_select.get(): self.apply_base_suggestions()
         else: self.update_tag_colors()
+        self.update_status_label()
 
     def apply_filter(self):
-        text = self.filter_text.get().lower()
+        text = self.filter_text.get()
+        is_empty = not text
         for parent in self.tree.get_children():
             has_matching_child = False
             for child in self.tree.get_children(parent):
                 filename = self.tree.item(child, 'text')
-                # Ignore " - Copy" for filtering
-                filter_filename = filename.replace(" - Copy", "").lower()
-                matches_filter = text and text in filter_filename
-                if matches_filter or not text: has_matching_child = True
+                filepath = self.tree.item(child, 'values')[0] if self.tree.item(child, 'values') else None
+                matches_filter = self.check_match(text, filename, filepath)
+                if matches_filter or is_empty: has_matching_child = True
                 current_tags = list(self.tree.item(child, 'tags'))
                 if 'filtered' in current_tags: current_tags.remove('filtered')
                 if matches_filter: current_tags.append('filtered')
                 self.tree.item(child, tags=tuple(current_tags))
-            if text and not has_matching_child: self.tree.item(parent, open=False)
+            if not is_empty and not has_matching_child: self.tree.item(parent, open=False)
             else: self.tree.item(parent, open=True)
         self.update_tag_colors()
 
@@ -1116,6 +1349,29 @@ class DuplicateManager(tk.Tk):
             elif widget_type == 'Checkbutton': widget.configure(bg=self.light_bg, fg='black', activebackground=self.light_bg, activeforeground=self.light_bg, selectcolor='white', highlightbackground=self.light_bg)
         except tk.TclError: pass
         for child in widget.winfo_children(): self.apply_light_mode_recursive(child)
+
+    def sort_tree(self, col, reverse):
+        """Sort treeview content when a column header is clicked."""
+        # Get all top-level items (groups)
+        groups = [(self.tree.item(k, "text"), k) for k in self.tree.get_children('')]
+
+        # Sort groups
+        groups.sort(key=lambda t: t[0].lower(), reverse=reverse)
+
+        # Rearrange groups in the tree
+        for index, (val, k) in enumerate(groups):
+            self.tree.move(k, '', index)
+
+            # Also sort children within each group
+            children = [(self.tree.set(c, col) if col != '#0' else self.tree.item(c, "text"), c)
+                        for c in self.tree.get_children(k)]
+            children.sort(key=lambda t: t[0].lower(), reverse=reverse)
+            for c_index, (c_val, c_id) in enumerate(children):
+                self.tree.move(c_id, k, c_index)
+
+        # Reverse sort for next click
+        self.tree.heading(col, command=lambda: self.sort_tree(col, not reverse))
+        self.refresh_row_colors()
 
 if __name__ == '__main__':
     app = DuplicateManager()
