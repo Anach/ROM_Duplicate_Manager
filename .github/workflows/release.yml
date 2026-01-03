@@ -109,7 +109,6 @@ jobs:
 
         # Create archive
         cd release
-
         if [ "${{ matrix.platform }}" = "win" ]; then
           7z a "../$FILENAME" *
         else
@@ -117,9 +116,9 @@ jobs:
         fi
         cd ..
 
-        # Fail if archive was not created
-        if [ ! -f "$FILENAME" ]; then
-          echo "Archive $FILENAME was not created!" >&2
+        ARCHIVE_PATH="$PWD/$FILENAME"
+        if [ ! -f "$ARCHIVE_PATH" ]; then
+          echo "Archive $ARCHIVE_PATH was not created!" >&2
           exit 1
         fi
 
