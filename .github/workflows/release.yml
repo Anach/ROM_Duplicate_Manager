@@ -5,7 +5,7 @@ on:
 
 env:
   APP_NAME: ROM.Duplicate.Manager
-  
+
 jobs:
   build:
     strategy:
@@ -16,24 +16,24 @@ jobs:
             extension: .exe
             archive: zip
           - os: ubuntu-latest
-            platform: linux  
+            platform: linux
             extension: .AppImage
             archive: tar.gz
           - os: macos-latest
             platform: macos
             extension: .app
             archive: tar.gz
-    
+
     runs-on: ${{ matrix.os }}
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Get version from tag
       id: version
       run: |
@@ -41,35 +41,35 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "clean_version=${VERSION//[^0-9.]/}" >> $GITHUB_OUTPUT
       shell: bash
-    
+
     - name: Install dependencies
       run: |
         pip install -r requirements.txt
         pip install pyinstaller
-    
+
     - name: Build Windows EXE
       if: matrix.platform == 'win'
       run: |
-        pyinstaller --onefile --windowed --name="${{ env.APP_NAME }}" rom_duplicate_manager.py
-        
-    - name: Build Linux AppImage  
+        pyinstaller --onefile --windowed --name="${{ env.APP_NAME }}" run.py
+
+    - name: Build Linux AppImage
       if: matrix.platform == 'linux'
       run: |
-        pyinstaller --onefile --name="${{ env.APP_NAME }}" rom_duplicate_manager.py
+        pyinstaller --onefile --name="${{ env.APP_NAME }}" run.py
         # TODO: Add AppImage creation steps
-        
+
     - name: Build macOS App
       if: matrix.platform == 'macos'
       run: |
-        pyinstaller --onefile --windowed --name="${{ env.APP_NAME }}" rom_duplicate_manager.py
+        pyinstaller --onefile --windowed --name="${{ env.APP_NAME }}" run.py
         # TODO: Create .dmg from .app bundle
-    
+
     - name: Create release archive
       id: archive
       run: |
         VERSION="${{ steps.version.outputs.clean_version }}"
         PLATFORM="${{ matrix.platform }}"
-        
+
         # Create standardized filename
         if [ "${{ matrix.platform }}" = "win" ]; then
           FILENAME="${{ env.APP_NAME }}.v.$VERSION.zip"
@@ -81,10 +81,10 @@ jobs:
           FILENAME="${{ env.APP_NAME }}.v.$VERSION.macos.tar.gz"
           ARCHIVE_CMD="tar -czf"
         fi
-        
+
         # Create release directory
         mkdir -p release
-        
+
         # Copy executable
         if [ "${{ matrix.platform }}" = "win" ]; then
           cp "dist/${{ env.APP_NAME }}.exe" release/
@@ -94,18 +94,18 @@ jobs:
         else
           cp -r "dist/${{ env.APP_NAME }}.app" release/ || cp "dist/${{ env.APP_NAME }}" release/
         fi
-        
+
         # Copy documentation
         cp README.md release/
-        cp CHANGELOG.md release/ 
+        cp CHANGELOG.md release/
         cp LICENSE release/
-        
+
         # Create version info file
         echo "Version: $VERSION" > release/VERSION.txt
         echo "Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> release/VERSION.txt
         echo "Platform: ${{ matrix.platform }}" >> release/VERSION.txt
         echo "Git Commit: ${{ github.sha }}" >> release/VERSION.txt
-        
+
         # Create archive
         cd release
         if [ "${{ matrix.platform }}" = "win" ]; then
@@ -114,41 +114,41 @@ jobs:
           tar -czf "../$FILENAME" *
         fi
         cd ..
-        
+
         echo "filename=$FILENAME" >> $GITHUB_OUTPUT
         echo "filepath=$PWD/$FILENAME" >> $GITHUB_OUTPUT
       shell: bash
-    
+
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.archive.outputs.filename }}
         path: ${{ steps.archive.outputs.filepath }}
-  
+
   release:
     needs: build
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
-    
-    - name: Get version  
+
+    - name: Get version
       id: version
       run: |
         VERSION=${GITHUB_REF#refs/tags/v}
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-    
+
     - name: Generate checksums
       run: |
         cd artifacts
         find . -name "*.zip" -o -name "*.tar.gz" | xargs sha256sum > SHA256SUMS
-        
+
     - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         name: "ROM Duplicate Manager v${{ steps.version.outputs.version }}"
         body_path: CHANGELOG.md
