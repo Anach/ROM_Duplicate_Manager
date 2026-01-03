@@ -2,3 +2,6 @@ workspace.code-workspace
 dist/
 build/
 *.zip
+PRE_RELEASE_OPTIMIZATION.md
+pyrightconfig.json
+__pycache__/

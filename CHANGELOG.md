@@ -2,6 +2,21 @@
 
 All notable updates to this project are documented here.
 
+## [v1.4.0] - 2026-01-03
+
+### Changed
+- **Modular codebase structure** - Split monolithic file into organized modules:
+  - `rom_duplicate_manager/config/` - Configuration management
+  - `rom_duplicate_manager/utils/` - Helper utilities and icon handling
+  - `rom_duplicate_manager/core/` - Core scanning and duplicate detection (prepared)
+  - `rom_duplicate_manager/ui/` - User interface components (prepared)
+- **Automated build system** - GitHub Actions workflow for cross-platform releases:
+  - Windows: `ROM.Duplicate.Manager.v.X.X.X.zip` with .exe
+  - Linux: `ROM.Duplicate.Manager.v.X.X.X.linux.tar.gz` with .AppImage
+  - macOS: `ROM.Duplicate.Manager.v.X.X.X.macos.tar.gz` with .app
+  - Automatic documentation bundling (README, CHANGELOG, LICENSE)
+  - SHA256 checksums for verification
+
 ## [v1.3.5] - 2026-01-03
 
 ### Added
@@ -28,7 +43,7 @@ All notable updates to this project are documented here.
   - Configuration for new options like “Match Size” and “Permanent Delete” now saved and restored automatically.
 - **Progress Popups for Long Operations:**
   - Scanning and deletion show progress indicators with file info, improving feedback on large sets.
-- **Improved filename normalization:**  
+- **Improved filename normalization:**
   - Cleans names by also stripping “ - Copy”, “ - Copy (n)”, and trailing parentheses or brackets, drastically reducing false duplicate matches.
 - **Expanded tooltips for all new controls.**
 - **Dark/light mode and multi-row color works for new features and popups.**
