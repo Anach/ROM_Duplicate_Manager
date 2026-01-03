@@ -1,6 +1,6 @@
 """ROM Duplicate Manager - A comprehensive tool for managing duplicate ROM files."""
 
-__version__ = "1.4.0"
+__version__ = "1.4.1"
 __author__ = "Anach"
 
 from .main import main, DuplicateManager
