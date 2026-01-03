@@ -57,14 +57,76 @@ jobs:
     - name: Build Linux AppImage
       if: matrix.platform == 'linux'
       run: |
+        set -e
+        VERSION="${{ steps.version.outputs.clean_version }}"
+        APPDIR="AppDir"
+        APPIMAGE_NAME="${{ env.APP_NAME }}-$VERSION.AppImage"
+
+        python -m pip install --quiet pillow
+
         pyinstaller --onefile --name="${{ env.APP_NAME }}" run.py
-        # TODO: Add AppImage creation steps
+
+        if [ ! -f "dist/${{ env.APP_NAME }}" ]; then
+          echo "ERROR: dist/${{ env.APP_NAME }} not found!" >&2
+          exit 1
+        fi
+
+        rm -rf "$APPDIR"
+        mkdir -p "$APPDIR/usr/bin" \
+          "$APPDIR/usr/share/applications" \
+          "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+
+        cp "dist/${{ env.APP_NAME }}" "$APPDIR/usr/bin/${{ env.APP_NAME }}"
+
+        cat <<'EOF' | sed 's/^        //' > "$APPDIR/AppRun"
+        #!/bin/bash
+        HERE="$(dirname "$(readlink -f "$0")")"
+        exec "$HERE/usr/bin/${{ env.APP_NAME }}" "$@"
+        EOF
+        chmod +x "$APPDIR/AppRun"
+
+        cat <<'EOF' | sed 's/^        //' > "$APPDIR/${{ env.APP_NAME }}.desktop"
+        [Desktop Entry]
+        Type=Application
+        Name=${{ env.APP_NAME }}
+        Exec=${{ env.APP_NAME }}
+        Icon=${{ env.APP_NAME }}
+        Categories=Utility;
+        EOF
+        cp "$APPDIR/${{ env.APP_NAME }}.desktop" "$APPDIR/usr/share/applications/"
+
+        python - "$APPDIR/usr/share/icons/hicolor/256x256/apps/${{ env.APP_NAME }}.png" pacman_icon.ico <<'PY'
+        if True:
+            from PIL import Image
+            import sys
+
+            out_path = sys.argv[1]
+            ico_path = sys.argv[2]
+
+            with Image.open(ico_path) as img:
+                img.save(out_path, format="PNG")
+        PY
+
+        wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+        chmod +x appimagetool
+
+        APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool "$APPDIR" "dist/$APPIMAGE_NAME"
 
     - name: Build macOS App
       if: matrix.platform == 'macos'
       run: |
         pyinstaller --onefile --windowed --name="${{ env.APP_NAME }}" run.py
-        # TODO: Create .dmg from .app bundle
+        APP_PATH="dist/${{ env.APP_NAME }}.app"
+        DMG_PATH="dist/${{ env.APP_NAME }}.dmg"
+
+        if [ ! -d "$APP_PATH" ]; then
+          echo "ERROR: $APP_PATH not found!" >&2
+          exit 1
+        fi
+
+        rm -f "$DMG_PATH"
+        hdiutil create -volname "${{ env.APP_NAME }}" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_PATH"
+        hdiutil verify "$DMG_PATH"
 
     - name: Create release archive
       id: archive
@@ -77,6 +139,7 @@ jobs:
           ARCHIVE_CMD="7z a"
         elif [ "${{ matrix.platform }}" = "linux" ]; then
           FILENAME="${{ env.APP_NAME }}.v.$VERSION.linux.tar.gz"
+          APPIMAGE_FILENAME="${{ env.APP_NAME }}-$VERSION.AppImage"
           ARCHIVE_CMD="tar -czf"
         else
           FILENAME="${{ env.APP_NAME }}.v.$VERSION.macos.tar.gz"
@@ -95,12 +158,15 @@ jobs:
           fi
           cp "dist/${{ env.APP_NAME }}.exe" release/
         elif [ "${{ matrix.platform }}" = "linux" ]; then
-          if [ ! -f "dist/${{ env.APP_NAME }}" ]; then
-            echo "ERROR: dist/${{ env.APP_NAME }} not found!" >&2
+          if [ -z "${APPIMAGE_FILENAME:-}" ]; then
+            echo "ERROR: APPIMAGE_FILENAME not set!" >&2
             exit 1
           fi
-          cp "dist/${{ env.APP_NAME }}" release/
-          mv "release/${{ env.APP_NAME }}" "release/${{ env.APP_NAME }}.AppImage"
+          if [ ! -f "dist/$APPIMAGE_FILENAME" ]; then
+            echo "ERROR: dist/$APPIMAGE_FILENAME not found!" >&2
+            exit 1
+          fi
+          cp "dist/$APPIMAGE_FILENAME" release/
         else
           if [ -d "dist/${{ env.APP_NAME }}.app" ]; then
             cp -r "dist/${{ env.APP_NAME }}.app" release/
@@ -158,7 +224,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: release-binaries
+        name: release-binaries-${{ matrix.platform }}
         path: ${{ steps.archive.outputs.filepath }}
 
   release:
@@ -167,10 +233,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Download all artifacts
+    - name: Download Windows artifact
       uses: actions/download-artifact@v4
       with:
-        name: release-binaries
+        name: release-binaries-win
+        path: artifacts/release-binaries
+
+    - name: Download Linux artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: release-binaries-linux
+        path: artifacts/release-binaries
+
+    - name: Download macOS artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: release-binaries-macos
         path: artifacts/release-binaries
 
     - name: Get version
