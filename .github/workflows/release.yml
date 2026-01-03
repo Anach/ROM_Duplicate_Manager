@@ -37,6 +37,7 @@ jobs:
     - name: Get version from tag
       id: version
       run: |
+        set -e
         VERSION=${GITHUB_REF#refs/tags/v}
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "clean_version=${VERSION//[^0-9.]/}" >> $GITHUB_OUTPUT
@@ -108,12 +109,19 @@ jobs:
 
         # Create archive
         cd release
+
         if [ "${{ matrix.platform }}" = "win" ]; then
           7z a "../$FILENAME" *
         else
           tar -czf "../$FILENAME" *
         fi
         cd ..
+
+        # Fail if archive was not created
+        if [ ! -f "$FILENAME" ]; then
+          echo "Archive $FILENAME was not created!" >&2
+          exit 1
+        fi
 
         echo "filename=$FILENAME" >> $GITHUB_OUTPUT
         echo "filepath=$PWD/$FILENAME" >> $GITHUB_OUTPUT
