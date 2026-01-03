@@ -420,7 +420,7 @@ class MenuBarMixin:
             child.bind("<Leave>", on_leave)
             child.bind("<Button-1>", on_click)
 
-    def _check_hide_submenu(self, parent_frame: tk.Frame, event) -> None:
+    def _check_hide_submenu(self, parent_frame: tk.Frame, event: tk.Event) -> None:
         """Check if submenu should be hidden when leaving parent item."""
         submenu = parent_frame.submenu_dropdown  # type: ignore
         if not submenu:
@@ -459,7 +459,7 @@ class MenuBarMixin:
         except tk.TclError:
             pass
 
-    def _on_global_click(self, event) -> None:
+    def _on_global_click(self, event: tk.Event) -> None:
         """Handle clicks anywhere to close menu if clicking outside."""
         if not self.current_dropdown:
             return

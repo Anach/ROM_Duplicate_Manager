@@ -2,7 +2,7 @@
 
 import tkinter as tk
 from tkinter import ttk
-from typing import Union, Any
+from typing import Union, Any, Optional
 
 
 class ToolTip:
@@ -27,13 +27,13 @@ class ToolTip:
         widget.bind("<Leave>", self.hide_tip, add="+")
         widget.bind("<ButtonPress>", self.hide_tip, add="+")
 
-    def schedule_tip(self, event=None) -> None:
+    def schedule_tip(self, event: Optional[tk.Event] = None) -> None:
         """Schedule tooltip to show after delay."""
         self.hide_tip()
         if self.text:
             self.id = self.widget.after(500, self.show_tip)
 
-    def show_tip(self, event=None) -> None:
+    def show_tip(self, event: Optional[tk.Event] = None) -> None:
         """Display the tooltip window."""
         if not self.text:
             return
@@ -54,7 +54,7 @@ class ToolTip:
                        font=("tahoma", 8, "normal"))
         label.pack(ipadx=1)
 
-    def hide_tip(self, event=None) -> None:
+    def hide_tip(self, event: Optional[tk.Event] = None) -> None:
         """Hide the tooltip window."""
         if self.id:
             try:

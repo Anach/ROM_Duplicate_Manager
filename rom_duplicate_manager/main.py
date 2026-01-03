@@ -228,7 +228,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         create_tooltip(self.match_size_check, "Group files by identical size and partial content hash instead of name")
         self.scan_images_check = ttk.Checkbutton(b2_row2, text="Scan Images", variable=self.scan_images, command=self.on_scan_images_toggle)
         self.scan_images_check.pack(side='left', padx=(10, 2))
-        create_tooltip(self.scan_images_check, "Enable scanning and automatic deletion of orphaned images in the /images/ sub-folder")
+        create_tooltip(self.scan_images_check, "Include image files when scanning 'All Files', and auto-delete orphaned images from /images/ folder")
 
         # BLOCK 3: Filter & Actions
         block3 = ttk.LabelFrame(toolbar_container, text="Filter", padding=5)
@@ -559,13 +559,18 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         ext_filter = self.file_types.get(self.file_type_filter.get())
         system_exts = self.file_types.get("System") or set()
         images_exts = self.file_types.get("Images") or set()
-        ignore_system_prefix = ext_filter is None
-        exclude_exts = images_exts if (ext_filter is None and not self.scan_images.get()) else None
+        # "All Files" returns empty set - treat as None (no filter)
+        is_all_files = ext_filter is None or len(ext_filter) == 0
+        ignore_system_prefix = is_all_files
+        # Exclude images from "All Files" unless Scan Images is enabled
+        exclude_exts = images_exts if (is_all_files and not self.scan_images.get()) else None
+        # Pass None for extension filter when scanning all files
+        scan_ext_filter = None if is_all_files else ext_filter
 
         self._scanner.start_scan(
             folder,
             self.include_subfolders.get(),
-            ext_filter,
+            scan_ext_filter,
             self.match_size.get(),
             system_exts,
             ignore_system_prefix,
@@ -611,13 +616,13 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         # Start polling
         self.after(16, poll_scanner)
 
-    def on_language_change(self, event=None) -> None:
+    def on_language_change(self, event: Optional[tk.Event] = None) -> None:
         """Handle language filter selection change."""
         if hasattr(self, 'tree') and self.tree.get_children():
             self.apply_base_suggestions()
         self.save_settings()
 
-    def on_file_type_change(self, event=None) -> None:
+    def on_file_type_change(self, event: Optional[tk.Event] = None) -> None:
         """Handle file type filter change."""
         self.scan()
         self.save_settings()

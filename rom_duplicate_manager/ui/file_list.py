@@ -11,7 +11,7 @@ from tkinter import ttk
 import ttkbootstrap as ttk_bs
 import fnmatch
 import re
-from typing import List, Optional
+from typing import List, Optional, Any
 from send2trash import send2trash
 
 
@@ -95,7 +95,7 @@ class FileListMixin:
         self.tree.item(item, tags=tuple(tags))
         self.update_status_label()
 
-    def on_tree_double_click(self, event) -> str:
+    def on_tree_double_click(self, event: tk.Event) -> str:
         """Handle double-click to toggle item status.
 
         Args:
@@ -108,7 +108,7 @@ class FileListMixin:
         self.toggle_item_status(item)
         return "break"
 
-    def on_space_press(self, event) -> str:
+    def on_space_press(self, event: tk.Event) -> str:
         """Handle spacebar press to toggle status of all selected items.
 
         Args:
@@ -122,7 +122,7 @@ class FileListMixin:
             self.toggle_item_status(item)
         return "break"
 
-    def show_context_menu(self, event) -> None:
+    def show_context_menu(self, event: tk.Event) -> None:
         """Display the right-click context menu for file items.
 
         Automatically selects the right-clicked item and applies current theme
