@@ -2,6 +2,17 @@
 
 All notable updates to this project are documented here.
 
+## [v1.3.5] - 2026-01-03
+
+### Added
+- Pac-Man application icon plus refreshed tooltips and keyboard shortcuts (Ctrl+F to focus the filter, Ctrl+R to rescan, Space to toggle keep/delete, Delete to mark for removal).
+- Status bar now reports how many items are marked for removal and their total size before you delete.
+
+### Changed
+- "Scan Images" now doubles as an image filter: when unchecked, wildcard scans skip image extensions; when checked, images are scanned and orphan cleanup runs.
+- Wildcard scans strip 3-4 digit catalogue prefixes from ROM/system filenames to better align with archive names and reduce false mismatches.
+- Button layout and selection handling tuned for smoother keyboard use with the new shortcuts.
+
 ## [v1.3.0] - 2026-01-02
 
 ### Added
