@@ -35,7 +35,7 @@ from .utils.helpers import (
     normalize_filename, extract_version, extract_languages, get_partial_hash, format_size
 )
 from .ui.components import ToolTip, AutoScrollbar, create_tooltip
-from .core.scanner import scan_folder
+from .core.scanner import AsyncScanner, ScanStatus
 from .utils.updater import UpdateChecker, get_current_version
 
 # Import all mixins
@@ -152,6 +152,9 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         # Data storage
         self.duplicates = {}
         self.non_duplicates = {}
+
+        # Async scanner instance
+        self._scanner = AsyncScanner()
 
         # Set up variable tracing
         self.filter_text.trace_add('write', self.on_filter_change)
@@ -513,9 +516,13 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
                 self.status_label2.pack_forget()
 
     def scan(self) -> None:
-        """Scan the selected folder for duplicate files with progress indication."""
+        """Scan the selected folder for duplicate files with async progress indication."""
         folder = self.folder.get()
         if not folder or not os.path.isdir(folder):
+            return
+
+        # Don't start a new scan if one is already running
+        if self._scanner.is_running:
             return
 
         # Create and configure progress popup
@@ -543,35 +550,66 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         pb = ttk_bs.Progressbar(progress_popup, orient='horizontal', length=360, mode='determinate', bootstyle='primary')
         pb.pack(padx=20, pady=10)
 
-        def progress_callback(current: int, total: int, msg: str) -> None:
-            """Update progress display."""
-            pb['maximum'] = total
-            pb['value'] = current
-            display_msg = msg[:57] + "..." if len(msg) > 60 else msg
-            lbl.config(text=display_msg)
-            progress_popup.update()
+        # Handle popup close as cancellation
+        def on_popup_close():
+            self._scanner.cancel()
+        progress_popup.protocol("WM_DELETE_WINDOW", on_popup_close)
 
-        try:
-            ext_filter = self.file_types.get(self.file_type_filter.get())
-            system_exts = self.file_types.get("System") or set()
-            images_exts = self.file_types.get("Images") or set()
-            ignore_system_prefix = ext_filter is None
-            exclude_exts = images_exts if (ext_filter is None and not self.scan_images.get()) else None
-            self.duplicates, self.non_duplicates = scan_folder(
-                folder,
-                self.include_subfolders.get(),
-                ext_filter,
-                self.match_size.get(),
-                progress_callback,
-                system_exts,
-                ignore_system_prefix,
-                exclude_exts
-            )
-        finally:
-            progress_popup.destroy()
+        # Start async scan
+        ext_filter = self.file_types.get(self.file_type_filter.get())
+        system_exts = self.file_types.get("System") or set()
+        images_exts = self.file_types.get("Images") or set()
+        ignore_system_prefix = ext_filter is None
+        exclude_exts = images_exts if (ext_filter is None and not self.scan_images.get()) else None
 
-        self.populate_tree()
-        self.update_status_label()
+        self._scanner.start_scan(
+            folder,
+            self.include_subfolders.get(),
+            ext_filter,
+            self.match_size.get(),
+            system_exts,
+            ignore_system_prefix,
+            exclude_exts
+        )
+
+        def poll_scanner():
+            """Poll the scanner for progress updates."""
+            result = self._scanner.get_result()
+
+            if result is None:
+                # No result yet, continue polling
+                if self._scanner.is_running:
+                    self.after(16, poll_scanner)  # ~60fps polling
+                return
+
+            if result.status == ScanStatus.PROGRESS:
+                # Update progress display
+                pb['maximum'] = result.total
+                pb['value'] = result.progress
+                display_msg = result.message[:57] + "..." if len(result.message) > 60 else result.message
+                lbl.config(text=display_msg)
+                # Continue polling
+                self.after(16, poll_scanner)
+
+            elif result.status == ScanStatus.COMPLETE:
+                # Scan finished successfully
+                self.duplicates = result.duplicates or {}
+                self.non_duplicates = result.non_duplicates or {}
+                progress_popup.destroy()
+                self.populate_tree()
+                self.update_status_label()
+
+            elif result.status == ScanStatus.CANCELLED:
+                # Scan was cancelled
+                progress_popup.destroy()
+
+            elif result.status == ScanStatus.ERROR:
+                # Scan encountered an error
+                progress_popup.destroy()
+                messagebox.showerror("Scan Error", f"An error occurred during scanning:\n{result.message}")
+
+        # Start polling
+        self.after(16, poll_scanner)
 
     def on_language_change(self, event=None) -> None:
         """Handle language filter selection change."""
