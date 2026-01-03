@@ -134,13 +134,13 @@ jobs:
         cd release
         if [ "${{ matrix.platform }}" = "win" ]; then
           # Remove any file or directory with the same name as the archive
-          if [ -e "../$FILENAME" ]; then
+          if [ -e "../$FILENAME" ] || [ -d "../$FILENAME" ]; then
             rm -rf "../$FILENAME"
           fi
           7z a "../$FILENAME" *
         else
           # Remove any file or directory with the same name as the archive
-          if [ -e "../$FILENAME" ]; then
+          if [ -e "../$FILENAME" ] || [ -d "../$FILENAME" ]; then
             rm -rf "../$FILENAME"
           fi
           tar -czf "../$FILENAME" *
