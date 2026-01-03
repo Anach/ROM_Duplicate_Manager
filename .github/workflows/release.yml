@@ -38,6 +38,7 @@ jobs:
       id: version
       run: |
         set -e
+        set -x
         VERSION=${GITHUB_REF#refs/tags/v}
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "clean_version=${VERSION//[^0-9.]/}" >> $GITHUB_OUTPUT
@@ -131,7 +132,16 @@ jobs:
         ls -l release/
 
         # Create archive
+
         cd release
+        echo "[DEBUG] Before archive: file type for ../$FILENAME:"
+        if [ -e "../$FILENAME" ]; then
+          file "../$FILENAME"
+          ls -ld "../$FILENAME"
+        else
+          echo "../$FILENAME does not exist yet."
+        fi
+
         if [ "${{ matrix.platform }}" = "win" ]; then
           # Remove any file or directory with the same name as the archive
           if [ -e "../$FILENAME" ] || [ -d "../$FILENAME" ]; then
@@ -145,6 +155,15 @@ jobs:
           fi
           tar -czf "../$FILENAME" *
         fi
+
+        echo "[DEBUG] After archive: file type for ../$FILENAME:"
+        if [ -e "../$FILENAME" ]; then
+          file "../$FILENAME"
+          ls -ld "../$FILENAME"
+        else
+          echo "../$FILENAME does not exist after archiving!"
+        fi
+
         cd ..
 
         ARCHIVE_PATH="$PWD/$FILENAME"
@@ -192,7 +211,11 @@ jobs:
     - name: Generate checksums
       run: |
         cd artifacts
-        find . \( -name "*.zip" -o -name "*.tar.gz" \) | xargs sha256sum > SHA256SUMS
+        # Downloaded artifacts are placed inside directories named after the artifact.
+        # Explicitly limit to files so directories named *.zip/*.tar.gz do not break sha256sum.
+        find . -type f \( -name "*.zip" -o -name "*.tar.gz" \) -print0 \
+          | sort -z \
+          | xargs -0 sha256sum > SHA256SUMS
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
