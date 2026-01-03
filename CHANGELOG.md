@@ -4,7 +4,9 @@ All notable updates to this project are documented here.
 
 ## [v1.4.1] - 2026-01-03
 
+
 ### Added
+- Asynchronous file scanning: UI remains responsive during large scans, with progress updates and cancellation support.
 - **Enhanced status display**:
   - Split status into two rows with better visual hierarchy
   - "Marked for deletion" line shown only when files are marked (bold formatting)
@@ -12,6 +14,9 @@ All notable updates to this project are documented here.
   - Status container now at top of window for better visibility
 
 ### Changed
+- Refactored main application to use a package structure; removed legacy monolithic files and added a new launcher (`run.py`), supporting `python -m rom_duplicate_manager`.
+- Improved "All Files" filter: now ignores images unless "Scan Images" is selected; clarified tooltip for "Scan Images".
+- Added comprehensive type hints to event handlers and UI components for better code clarity and editor support.
 - **Improved UI layout and workflow**:
   - Reorganized button layout for more intuitive flow
 - **Enhanced sorting behavior**:
@@ -22,6 +27,8 @@ All notable updates to this project are documented here.
   - Marked items (keep/delete) stay at top within each group
 
 ### Fixed
+- Restored correct dual behavior for "Scan Images" (image inclusion and orphan cleanup).
+- Minor bugfixes and improved error handling in scanning and UI.
 - Sort state properly tracked for user-initiated vs programmatic sorts
 - Fixed method signature inconsistencies in file list module
 
