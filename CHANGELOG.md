@@ -2,20 +2,75 @@
 
 All notable updates to this project are documented here.
 
+## [v1.4.1] - 2026-01-03
+
+### Added
+- **Enhanced status display**:
+  - Split status into two rows with better visual hierarchy
+  - "Marked for deletion" line shown only when files are marked (bold formatting)
+  - Dynamic text wrapping for long folder paths with reserved 2-line height
+  - Status container now at top of window for better visibility
+
+### Changed
+- **Improved UI layout and workflow**:
+  - Reorganized button layout for more intuitive flow
+- **Enhanced sorting behavior**:
+  - Duplicate groups (multiple files) now always appear at top of list
+  - Unique groups (single file) appear below duplicates
+  - Both sections maintain selected sort order (filename/path, ascending/descending)
+  - Sort resets to filename ascending on each new scan
+  - Marked items (keep/delete) stay at top within each group
+
+### Fixed
+- Sort state properly tracked for user-initiated vs programmatic sorts
+- Fixed method signature inconsistencies in file list module
+
 ## [v1.4.0] - 2026-01-03
+
+### Added
+- **Custom menu bar system**:
+  - Full theme integration with dark/light mode support
+  - Windows-style hover-to-open menu behavior
+  - Submenu support for theme selection
+  - Consistent styling across all themes
+- **Theme system overhaul**:
+  - Integrated ttkbootstrap for modern, professional appearance
+  - Multiple light themes: cosmo, flatly, journal, litera, lumen, minty, pulse, sandstone, united, yeti
+  - Multiple dark themes: cyborg, darkly, solar, superhero, vapor
+  - Theme selection saved to configuration
+  - Proper color coordination across all UI elements
+- **Update checker**:
+  - Automatic version checking against GitHub releases
+  - Platform-specific download links (Windows, macOS, Linux)
+  - Pre-release support option
+  - Direct browser launch for downloads
 
 ### Changed
 - **Modular codebase structure** - Split monolithic file into organized modules:
-  - `rom_duplicate_manager/config/` - Configuration management
-  - `rom_duplicate_manager/utils/` - Helper utilities and icon handling
-  - `rom_duplicate_manager/core/` - Core scanning and duplicate detection (prepared)
-  - `rom_duplicate_manager/ui/` - User interface components (prepared)
+  - `rom_duplicate_manager/config/` - Settings and defaults management
+  - `rom_duplicate_manager/utils/` - Helper utilities, icons, and updater
+  - `rom_duplicate_manager/core/` - Scanning, duplicate detection, and file operations
+  - `rom_duplicate_manager/ui/` - All UI components (dialogs, file list, menu bar, themes)
+- **Improved code organization**:
+  - Mixin pattern for clean separation of concerns
+  - Comprehensive docstrings for all functions and classes
+  - Type hints throughout codebase
+  - Reduced main file to ~690 lines (60% reduction from v1.3.5)
+- **Enhanced UI layout**:
+  - Status display moved to top of window in dedicated frame
+  - Buttons reorganized into modern toolbar layout
+  - Better visual grouping of related controls
+  - Improved tooltips for all UI elements
 - **Automated build system** - GitHub Actions workflow for cross-platform releases:
   - Windows: `ROM.Duplicate.Manager.v.X.X.X.zip` with .exe
   - Linux: `ROM.Duplicate.Manager.v.X.X.X.linux.tar.gz` with .AppImage
   - macOS: `ROM.Duplicate.Manager.v.X.X.X.macos.tar.gz` with .app
   - Automatic documentation bundling (README, CHANGELOG, LICENSE)
   - SHA256 checksums for verification
+
+### Fixed
+- Sorting now correctly maintains keep/delete items at top of each group
+- Improved error handling and user feedback throughout application
 
 ## [v1.3.5] - 2026-01-03
 

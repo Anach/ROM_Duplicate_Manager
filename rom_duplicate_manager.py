@@ -169,9 +169,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         toolbar_container = ttk.Frame(self.frame_top)
         toolbar_container.pack(fill='x')
 
-        # ═══════════════════════════════════════════════════════════════════
-        # BLOCK 1: Folder Selection (left block)
-        # ═══════════════════════════════════════════════════════════════════
+        # BLOCK 1: Folder Selection
         block1 = ttk.LabelFrame(toolbar_container, text="Location", padding=5)
         block1.pack(side='left', fill='y', padx=(0, 5))
 
@@ -200,9 +198,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.subfolders_check.pack(side='left', padx=(10, 2))
         create_tooltip(self.subfolders_check, "Include sub-folders in the scan")
 
-        # ═══════════════════════════════════════════════════════════════════
-        # BLOCK 2: Scan Options (middle block)
-        # ═══════════════════════════════════════════════════════════════════
+        # BLOCK 2: Scan Options
         block2 = ttk.LabelFrame(toolbar_container, text="Options", padding=5)
         block2.pack(side='left', fill='y', padx=5)
 
@@ -231,9 +227,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.scan_images_check.pack(side='left', padx=(10, 2))
         create_tooltip(self.scan_images_check, "Enable scanning and automatic deletion of orphaned images in the /images/ sub-folder")
 
-        # ═══════════════════════════════════════════════════════════════════
-        # BLOCK 3: Filter & Actions (right block)
-        # ═══════════════════════════════════════════════════════════════════
+        # BLOCK 3: Filter & Actions
         block3 = ttk.LabelFrame(toolbar_container, text="Filter", padding=5)
         block3.pack(side='left', fill='both', expand=False, padx=(5, 0))
 
@@ -268,6 +262,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.reset_btn.pack(side='left', padx=2)
         create_tooltip(self.reset_btn, "Reset all manual keep/delete marks")
 
+        # BLOCK 4: Stats
         block4 = ttk.LabelFrame(toolbar_container, text="Stats", padding=5)
         block4.pack(side='left', fill='both', expand=True, padx=(5, 0))
 
