@@ -86,14 +86,33 @@ jobs:
         # Create release directory
         mkdir -p release
 
-        # Copy executable
+        # Print dist/ contents for debugging
+        echo "Contents of dist/:"
+        ls -l dist/
+
+        # Copy executable with checks
         if [ "${{ matrix.platform }}" = "win" ]; then
+          if [ ! -f "dist/${{ env.APP_NAME }}.exe" ]; then
+            echo "ERROR: dist/${{ env.APP_NAME }}.exe not found!" >&2
+            exit 1
+          fi
           cp "dist/${{ env.APP_NAME }}.exe" release/
         elif [ "${{ matrix.platform }}" = "linux" ]; then
+          if [ ! -f "dist/${{ env.APP_NAME }}" ]; then
+            echo "ERROR: dist/${{ env.APP_NAME }} not found!" >&2
+            exit 1
+          fi
           cp "dist/${{ env.APP_NAME }}" release/
           mv "release/${{ env.APP_NAME }}" "release/${{ env.APP_NAME }}.AppImage"
         else
-          cp -r "dist/${{ env.APP_NAME }}.app" release/ || cp "dist/${{ env.APP_NAME }}" release/
+          if [ -d "dist/${{ env.APP_NAME }}.app" ]; then
+            cp -r "dist/${{ env.APP_NAME }}.app" release/
+          elif [ -f "dist/${{ env.APP_NAME }}" ]; then
+            cp "dist/${{ env.APP_NAME }}" release/
+          else
+            echo "ERROR: No macOS app or binary found in dist/!" >&2
+            exit 1
+          fi
         fi
 
         # Copy documentation
@@ -107,18 +126,39 @@ jobs:
         echo "Platform: ${{ matrix.platform }}" >> release/VERSION.txt
         echo "Git Commit: ${{ github.sha }}" >> release/VERSION.txt
 
+        # Print release/ contents before archiving
+        echo "Contents of release/:"
+        ls -l release/
+
         # Create archive
         cd release
         if [ "${{ matrix.platform }}" = "win" ]; then
+          # Remove any file or directory with the same name as the archive
+          if [ -e "../$FILENAME" ]; then
+            rm -rf "../$FILENAME"
+          fi
           7z a "../$FILENAME" *
         else
+          # Remove any file or directory with the same name as the archive
+          if [ -e "../$FILENAME" ]; then
+            rm -rf "../$FILENAME"
+          fi
           tar -czf "../$FILENAME" *
         fi
         cd ..
 
         ARCHIVE_PATH="$PWD/$FILENAME"
+        # Print workspace contents after archiving
+        echo "Contents of workspace after archiving:"
+        ls -l
+
+        # Fail if archive was not created or is a directory
         if [ ! -f "$ARCHIVE_PATH" ]; then
           echo "Archive $ARCHIVE_PATH was not created!" >&2
+          exit 1
+        fi
+        if [ -d "$ARCHIVE_PATH" ]; then
+          echo "Archive $ARCHIVE_PATH is a directory, not a file!" >&2
           exit 1
         fi
 
