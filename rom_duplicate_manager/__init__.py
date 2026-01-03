@@ -3,6 +3,6 @@
 __version__ = "1.4.0"
 __author__ = "Anach"
 
-from .main import main
+from .main import main, DuplicateManager
 
-__all__ = ['main', '__version__', '__author__']
+__all__ = ['main', 'DuplicateManager', '__version__', '__author__']

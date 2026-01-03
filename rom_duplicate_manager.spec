@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['rom_duplicate_manager.py'],
+    ['run.py'],
     pathex=[],
     binaries=[],
     datas=[],
