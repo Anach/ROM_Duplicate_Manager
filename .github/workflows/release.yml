@@ -72,7 +72,6 @@ jobs:
         VERSION="${{ steps.version.outputs.clean_version }}"
         PLATFORM="${{ matrix.platform }}"
 
-        # Create standardized filename
         if [ "${{ matrix.platform }}" = "win" ]; then
           FILENAME="${{ env.APP_NAME }}.v.$VERSION.zip"
           ARCHIVE_CMD="7z a"
@@ -84,14 +83,11 @@ jobs:
           ARCHIVE_CMD="tar -czf"
         fi
 
-        # Create release directory
         mkdir -p release
 
-        # Print dist/ contents for debugging
         echo "Contents of dist/:"
         ls -l dist/
 
-        # Copy executable with checks
         if [ "${{ matrix.platform }}" = "win" ]; then
           if [ ! -f "dist/${{ env.APP_NAME }}.exe" ]; then
             echo "ERROR: dist/${{ env.APP_NAME }}.exe not found!" >&2
@@ -116,62 +112,36 @@ jobs:
           fi
         fi
 
-        # Copy documentation
         cp README.md release/
         cp CHANGELOG.md release/
         cp LICENSE release/
 
-        # Create version info file
         echo "Version: $VERSION" > release/VERSION.txt
         echo "Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> release/VERSION.txt
         echo "Platform: ${{ matrix.platform }}" >> release/VERSION.txt
         echo "Git Commit: ${{ github.sha }}" >> release/VERSION.txt
 
-        # Print release/ contents before archiving
         echo "Contents of release/:"
         ls -l release/
 
-        # Create archive
-
         cd release
-        echo "[DEBUG] Before archive: file type for ../$FILENAME:"
-        if [ -e "../$FILENAME" ]; then
-          file "../$FILENAME"
-          ls -ld "../$FILENAME"
-        else
-          echo "../$FILENAME does not exist yet."
+
+        if [ -e "../$FILENAME" ] || [ -d "../$FILENAME" ]; then
+          rm -rf "../$FILENAME"
         fi
 
         if [ "${{ matrix.platform }}" = "win" ]; then
-          # Remove any file or directory with the same name as the archive
-          if [ -e "../$FILENAME" ] || [ -d "../$FILENAME" ]; then
-            rm -rf "../$FILENAME"
-          fi
           7z a "../$FILENAME" *
         else
-          # Remove any file or directory with the same name as the archive
-          if [ -e "../$FILENAME" ] || [ -d "../$FILENAME" ]; then
-            rm -rf "../$FILENAME"
-          fi
           tar -czf "../$FILENAME" *
         fi
 
-        echo "[DEBUG] After archive: file type for ../$FILENAME:"
-        if [ -e "../$FILENAME" ]; then
-          file "../$FILENAME"
-          ls -ld "../$FILENAME"
-        else
-          echo "../$FILENAME does not exist after archiving!"
-        fi
-
         cd ..
-
         ARCHIVE_PATH="$PWD/$FILENAME"
-        # Print workspace contents after archiving
+
         echo "Contents of workspace after archiving:"
         ls -l
 
-        # Fail if archive was not created or is a directory
         if [ ! -f "$ARCHIVE_PATH" ]; then
           echo "Archive $ARCHIVE_PATH was not created!" >&2
           exit 1
@@ -188,7 +158,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.archive.outputs.filename }}
+        name: release-binaries
         path: ${{ steps.archive.outputs.filepath }}
 
   release:
@@ -200,7 +170,8 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
-        path: artifacts
+        name: release-binaries
+        path: artifacts/release-binaries
 
     - name: Get version
       id: version
@@ -210,9 +181,7 @@ jobs:
 
     - name: Generate checksums
       run: |
-        cd artifacts
-        # Downloaded artifacts are placed inside directories named after the artifact.
-        # Explicitly limit to files so directories named *.zip/*.tar.gz do not break sha256sum.
+        cd artifacts/release-binaries
         find . -type f \( -name "*.zip" -o -name "*.tar.gz" \) -print0 \
           | sort -z \
           | xargs -0 sha256sum > SHA256SUMS
@@ -223,9 +192,9 @@ jobs:
         name: "ROM Duplicate Manager v${{ steps.version.outputs.version }}"
         body_path: CHANGELOG.md
         files: |
-          artifacts/**/*.zip
-          artifacts/**/*.tar.gz
-          artifacts/SHA256SUMS
+          artifacts/release-binaries/*.zip
+          artifacts/release-binaries/*.tar.gz
+          artifacts/release-binaries/SHA256SUMS
         draft: false
         prerelease: false
       env:
