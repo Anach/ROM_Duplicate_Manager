@@ -3,6 +3,9 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: write
+
 env:
   APP_NAME: ROM.Duplicate.Manager
 
@@ -189,7 +192,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.archive.outputs.filename }}
-        path: ${{ steps.archive.outputs.filepath }}
+        path: ${{ steps.archive.outputs.filename }}
 
   release:
     needs: build
@@ -229,4 +232,4 @@ jobs:
         draft: false
         prerelease: false
       env:
-        GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
