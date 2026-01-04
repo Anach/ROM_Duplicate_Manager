@@ -57,76 +57,14 @@ jobs:
     - name: Build Linux AppImage
       if: matrix.platform == 'linux'
       run: |
-        set -e
-        VERSION="${{ steps.version.outputs.clean_version }}"
-        APPDIR="AppDir"
-        APPIMAGE_NAME="${{ env.APP_NAME }}-$VERSION.AppImage"
-
-        python -m pip install --quiet pillow
-
         pyinstaller --onefile --name="${{ env.APP_NAME }}" run.py
-
-        if [ ! -f "dist/${{ env.APP_NAME }}" ]; then
-          echo "ERROR: dist/${{ env.APP_NAME }} not found!" >&2
-          exit 1
-        fi
-
-        rm -rf "$APPDIR"
-        mkdir -p "$APPDIR/usr/bin" \
-          "$APPDIR/usr/share/applications" \
-          "$APPDIR/usr/share/icons/hicolor/256x256/apps"
-
-        cp "dist/${{ env.APP_NAME }}" "$APPDIR/usr/bin/${{ env.APP_NAME }}"
-
-        cat <<'EOF' | sed 's/^        //' > "$APPDIR/AppRun"
-        #!/bin/bash
-        HERE="$(dirname "$(readlink -f "$0")")"
-        exec "$HERE/usr/bin/${{ env.APP_NAME }}" "$@"
-        EOF
-        chmod +x "$APPDIR/AppRun"
-
-        cat <<'EOF' | sed 's/^        //' > "$APPDIR/${{ env.APP_NAME }}.desktop"
-        [Desktop Entry]
-        Type=Application
-        Name=${{ env.APP_NAME }}
-        Exec=${{ env.APP_NAME }}
-        Icon=${{ env.APP_NAME }}
-        Categories=Utility;
-        EOF
-        cp "$APPDIR/${{ env.APP_NAME }}.desktop" "$APPDIR/usr/share/applications/"
-
-        python - "$APPDIR/usr/share/icons/hicolor/256x256/apps/${{ env.APP_NAME }}.png" pacman_icon.ico <<'PY'
-        if True:
-            from PIL import Image
-            import sys
-
-            out_path = sys.argv[1]
-            ico_path = sys.argv[2]
-
-            with Image.open(ico_path) as img:
-                img.save(out_path, format="PNG")
-        PY
-
-        wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
-        chmod +x appimagetool
-
-        APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool "$APPDIR" "dist/$APPIMAGE_NAME"
+        # TODO: Add AppImage creation steps
 
     - name: Build macOS App
       if: matrix.platform == 'macos'
       run: |
         pyinstaller --onefile --windowed --name="${{ env.APP_NAME }}" run.py
-        APP_PATH="dist/${{ env.APP_NAME }}.app"
-        DMG_PATH="dist/${{ env.APP_NAME }}.dmg"
-
-        if [ ! -d "$APP_PATH" ]; then
-          echo "ERROR: $APP_PATH not found!" >&2
-          exit 1
-        fi
-
-        rm -f "$DMG_PATH"
-        hdiutil create -volname "${{ env.APP_NAME }}" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_PATH"
-        hdiutil verify "$DMG_PATH"
+        # TODO: Create .dmg from .app bundle
 
     - name: Create release archive
       id: archive
@@ -134,23 +72,26 @@ jobs:
         VERSION="${{ steps.version.outputs.clean_version }}"
         PLATFORM="${{ matrix.platform }}"
 
+        # Create standardized filename
         if [ "${{ matrix.platform }}" = "win" ]; then
           FILENAME="${{ env.APP_NAME }}.v.$VERSION.zip"
           ARCHIVE_CMD="7z a"
         elif [ "${{ matrix.platform }}" = "linux" ]; then
           FILENAME="${{ env.APP_NAME }}.v.$VERSION.linux.tar.gz"
-          APPIMAGE_FILENAME="${{ env.APP_NAME }}-$VERSION.AppImage"
           ARCHIVE_CMD="tar -czf"
         else
           FILENAME="${{ env.APP_NAME }}.v.$VERSION.macos.tar.gz"
           ARCHIVE_CMD="tar -czf"
         fi
 
+        # Create release directory
         mkdir -p release
 
+        # Print dist/ contents for debugging
         echo "Contents of dist/:"
         ls -l dist/
 
+        # Copy executable with checks
         if [ "${{ matrix.platform }}" = "win" ]; then
           if [ ! -f "dist/${{ env.APP_NAME }}.exe" ]; then
             echo "ERROR: dist/${{ env.APP_NAME }}.exe not found!" >&2
@@ -158,15 +99,12 @@ jobs:
           fi
           cp "dist/${{ env.APP_NAME }}.exe" release/
         elif [ "${{ matrix.platform }}" = "linux" ]; then
-          if [ -z "${APPIMAGE_FILENAME:-}" ]; then
-            echo "ERROR: APPIMAGE_FILENAME not set!" >&2
+          if [ ! -f "dist/${{ env.APP_NAME }}" ]; then
+            echo "ERROR: dist/${{ env.APP_NAME }} not found!" >&2
             exit 1
           fi
-          if [ ! -f "dist/$APPIMAGE_FILENAME" ]; then
-            echo "ERROR: dist/$APPIMAGE_FILENAME not found!" >&2
-            exit 1
-          fi
-          cp "dist/$APPIMAGE_FILENAME" release/
+          cp "dist/${{ env.APP_NAME }}" release/
+          mv "release/${{ env.APP_NAME }}" "release/${{ env.APP_NAME }}.AppImage"
         else
           if [ -d "dist/${{ env.APP_NAME }}.app" ]; then
             cp -r "dist/${{ env.APP_NAME }}.app" release/
@@ -178,36 +116,62 @@ jobs:
           fi
         fi
 
+        # Copy documentation
         cp README.md release/
         cp CHANGELOG.md release/
         cp LICENSE release/
 
+        # Create version info file
         echo "Version: $VERSION" > release/VERSION.txt
         echo "Build Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> release/VERSION.txt
         echo "Platform: ${{ matrix.platform }}" >> release/VERSION.txt
         echo "Git Commit: ${{ github.sha }}" >> release/VERSION.txt
 
+        # Print release/ contents before archiving
         echo "Contents of release/:"
         ls -l release/
 
-        cd release
+        # Create archive
 
-        if [ -e "../$FILENAME" ] || [ -d "../$FILENAME" ]; then
-          rm -rf "../$FILENAME"
+        cd release
+        echo "[DEBUG] Before archive: file type for ../$FILENAME:"
+        if [ -e "../$FILENAME" ]; then
+          file "../$FILENAME"
+          ls -ld "../$FILENAME"
+        else
+          echo "../$FILENAME does not exist yet."
         fi
 
         if [ "${{ matrix.platform }}" = "win" ]; then
+          # Remove any file or directory with the same name as the archive
+          if [ -e "../$FILENAME" ] || [ -d "../$FILENAME" ]; then
+            rm -rf "../$FILENAME"
+          fi
           7z a "../$FILENAME" *
         else
+          # Remove any file or directory with the same name as the archive
+          if [ -e "../$FILENAME" ] || [ -d "../$FILENAME" ]; then
+            rm -rf "../$FILENAME"
+          fi
           tar -czf "../$FILENAME" *
         fi
 
-        cd ..
-        ARCHIVE_PATH="$PWD/$FILENAME"
+        echo "[DEBUG] After archive: file type for ../$FILENAME:"
+        if [ -e "../$FILENAME" ]; then
+          file "../$FILENAME"
+          ls -ld "../$FILENAME"
+        else
+          echo "../$FILENAME does not exist after archiving!"
+        fi
 
+        cd ..
+
+        ARCHIVE_PATH="$PWD/$FILENAME"
+        # Print workspace contents after archiving
         echo "Contents of workspace after archiving:"
         ls -l
 
+        # Fail if archive was not created or is a directory
         if [ ! -f "$ARCHIVE_PATH" ]; then
           echo "Archive $ARCHIVE_PATH was not created!" >&2
           exit 1
@@ -224,7 +188,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: release-binaries-${{ matrix.platform }}
+        name: ${{ steps.archive.outputs.filename }}
         path: ${{ steps.archive.outputs.filepath }}
 
   release:
@@ -233,23 +197,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Download Windows artifact
+    - name: Download all artifacts
       uses: actions/download-artifact@v4
       with:
-        name: release-binaries-win
-        path: artifacts/release-binaries
-
-    - name: Download Linux artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: release-binaries-linux
-        path: artifacts/release-binaries
-
-    - name: Download macOS artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: release-binaries-macos
-        path: artifacts/release-binaries
+        path: artifacts
 
     - name: Get version
       id: version
@@ -259,7 +210,9 @@ jobs:
 
     - name: Generate checksums
       run: |
-        cd artifacts/release-binaries
+        cd artifacts
+        # Downloaded artifacts are placed inside directories named after the artifact.
+        # Explicitly limit to files so directories named *.zip/*.tar.gz do not break sha256sum.
         find . -type f \( -name "*.zip" -o -name "*.tar.gz" \) -print0 \
           | sort -z \
           | xargs -0 sha256sum > SHA256SUMS
@@ -270,10 +223,10 @@ jobs:
         name: "ROM Duplicate Manager v${{ steps.version.outputs.version }}"
         body_path: CHANGELOG.md
         files: |
-          artifacts/release-binaries/*.zip
-          artifacts/release-binaries/*.tar.gz
-          artifacts/release-binaries/SHA256SUMS
+          artifacts/**/*.zip
+          artifacts/**/*.tar.gz
+          artifacts/SHA256SUMS
         draft: false
         prerelease: false
       env:
-        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.BUILD_TOKEN }}
