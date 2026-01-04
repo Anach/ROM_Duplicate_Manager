@@ -81,7 +81,8 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         super().__init__(themename=initial_theme)
         self.current_theme = initial_theme
         self.title("ROM Duplicate Manager")
-        self.geometry("1100x600")
+        self.geometry("1280x720")
+        self.minsize(1280, 720)
 
         # Set the application icon
         icon = get_icon_photo()
@@ -174,76 +175,74 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.frame_top = ttk.Frame(self)
         self.frame_top.pack(fill='x', padx=5, pady=5)
 
-        # Create 3 horizontal blocks for organization
+        # Create 4 horizontal blocks for organization
         toolbar_container = ttk.Frame(self.frame_top)
         toolbar_container.pack(fill='x')
 
         # BLOCK 1: Folder Selection
         block1 = ttk.LabelFrame(toolbar_container, text="Location", padding=5)
-        block1.pack(side='left', fill='y', padx=(0, 5))
+        block1.pack(side='left', fill='both', padx=(0, 5))
+        block1.columnconfigure(1, weight=1)
+        block1.rowconfigure(1, weight=1)  # Spacer row
 
-        # Row 1: Folder entry (no label) and Browse
-        b1_row1 = ttk.Frame(block1)
-        b1_row1.pack(fill='x', pady=1)
-        self.folder_entry = ttk.Entry(b1_row1, textvariable=self.folder, width=28)
-        self.folder_entry.pack(side='left', padx=2)
+        # Row 1: Folder entry and Browse
+        self.folder_entry = ttk.Entry(block1, textvariable=self.folder, width=28)
+        self.folder_entry.grid(row=0, column=0, columnspan=2, sticky='ew', padx=2, pady=1)
         self.folder_entry.bind('<Return>', lambda e: self.scan())
         create_tooltip(self.folder_entry, "Current folder path. Press Enter or Ctrl+R to rescan.")
-        self.browse_btn = ttk.Button(b1_row1, text="Browse", command=self.browse_folder)
-        self.browse_btn.pack(side='left', padx=2)
+        self.browse_btn = ttk.Button(block1, text="Browse", command=self.browse_folder)
+        self.browse_btn.grid(row=0, column=2, sticky='ew', padx=2, pady=1)
         create_tooltip(self.browse_btn, "Select a folder to scan for duplicates")
 
-        # Row 2: File Type first, then Sub-folders
-        b1_row2 = ttk.Frame(block1)
-        b1_row2.pack(fill='x', pady=1)
-        ttk.Label(b1_row2, text="File Type:").pack(side='left', padx=2)
-        self.type_combo = ttk.Combobox(b1_row2, textvariable=self.file_type_filter,
+        # Row 2: File Type and Sub-folders
+        block1.columnconfigure(0, minsize=70)
+        ttk.Label(block1, text="File Type:").grid(row=2, column=0, sticky='w', padx=2, pady=1)
+        self.type_combo = ttk.Combobox(block1, textvariable=self.file_type_filter,
                                        values=list(self.file_types.keys()),
                                        state='readonly', width=12)
-        self.type_combo.pack(side='left', padx=2)
+        self.type_combo.grid(row=2, column=1, sticky='w', padx=2, pady=1)
         self.type_combo.bind('<<ComboboxSelected>>', self.on_file_type_change)
         create_tooltip(self.type_combo, "Filter files by file-types")
-        self.subfolders_check = ttk.Checkbutton(b1_row2, text="Sub-folders", variable=self.include_subfolders, command=self.scan)
-        self.subfolders_check.pack(side='left', padx=(10, 2))
+        self.subfolders_check = ttk.Checkbutton(block1, text="Sub-folders", variable=self.include_subfolders, command=self.scan)
+        self.subfolders_check.grid(row=2, column=2, sticky='w', padx=(10, 10), pady=1)
         create_tooltip(self.subfolders_check, "Include sub-folders in the scan")
 
         # BLOCK 2: Scan Options
         block2 = ttk.LabelFrame(toolbar_container, text="Options", padding=5)
-        block2.pack(side='left', fill='y', padx=5)
+        block2.pack(side='left', fill='both', padx=5)
+        block2.columnconfigure(2, weight=1)
+        block2.rowconfigure(1, weight=1)  # Spacer row
 
-        # Row 1: Language, Smart Select
-        b2_row1 = ttk.Frame(block2)
-        b2_row1.pack(fill='x', pady=3)
-        self.lang_combo = ttk.Combobox(b2_row1, textvariable=self.language_filter,
+        # Row 1: Language and Smart Select
+        self.lang_combo = ttk.Combobox(block2, textvariable=self.language_filter,
                                        values=['Any', 'English-US', 'English-EU', 'Japanese', 'French', 'German',
                                               'Spanish', 'Italian', 'Dutch', 'Portuguese', 'Swedish',
                                               'Chinese', 'Korean'],
                                        state='readonly', width=12)
-        self.lang_combo.pack(side='left', padx=2)
+        self.lang_combo.grid(row=0, column=0, sticky='w', padx=2, pady=1)
         self.lang_combo.bind('<<ComboboxSelected>>', self.on_language_change)
         create_tooltip(self.lang_combo, "Preferred language for Smart Select suggestions")
-        self.smart_select_check = ttk.Checkbutton(b2_row1, text="Smart Select", variable=self.smart_select)
-        self.smart_select_check.pack(side='left', padx=(10, 2))
+        self.smart_select_check = ttk.Checkbutton(block2, text="Smart Select", variable=self.smart_select)
+        self.smart_select_check.grid(row=0, column=1, sticky='w', padx=(10, 2), pady=1)
         create_tooltip(self.smart_select_check, "Automatically mark duplicates for removal based on priority")
 
-        # Row 2: Match Size, Scan Images
-        b2_row2 = ttk.Frame(block2)
-        b2_row2.pack(fill='x', pady=6)
-        self.match_size_check = ttk.Checkbutton(b2_row2, text="Match File-Size", variable=self.match_size, command=self.on_match_size_toggle)
-        self.match_size_check.pack(side='left', padx=2)
+        # Row 2: Match Size and Scan Images
+        self.match_size_check = ttk.Checkbutton(block2, text="Match File-Size", variable=self.match_size, command=self.on_match_size_toggle)
+        self.match_size_check.grid(row=2, column=0, sticky='w', padx=2, pady=(0, 8))
         create_tooltip(self.match_size_check, "Group files by identical size and partial content hash instead of name")
-        self.scan_images_check = ttk.Checkbutton(b2_row2, text="Scan Images", variable=self.scan_images, command=self.on_scan_images_toggle)
-        self.scan_images_check.pack(side='left', padx=(10, 2))
+        self.scan_images_check = ttk.Checkbutton(block2, text="Scan Images", variable=self.scan_images, command=self.on_scan_images_toggle)
+        self.scan_images_check.grid(row=2, column=1, sticky='w', padx=(10, 2), pady=(0, 8))
         create_tooltip(self.scan_images_check, "Auto-delete orphaned images from /images/ folder, or Include image files when scanning 'All Files'")
 
         # BLOCK 3: Filter & Actions
         block3 = ttk.LabelFrame(toolbar_container, text="Filter", padding=5)
         block3.pack(side='left', fill='both', expand=False, padx=(5, 0))
+        block3.rowconfigure(1, weight=1)  # Spacer row
 
-        # Row 1: Filter entry (no label), Regex, Add Path
+        # Row 1: Filter entry, Regex, Add Path
         b3_row1 = ttk.Frame(block3)
-        b3_row1.pack(fill='x', pady=1)
-        self.filter_entry = ttk.Entry(b3_row1, textvariable=self.filter_text, width=22)
+        b3_row1.grid(row=0, column=0, sticky='ew', pady=1)
+        self.filter_entry = ttk.Entry(b3_row1, textvariable=self.filter_text, width=28)
         self.filter_entry.pack(side='left', padx=2)
         create_tooltip(self.filter_entry, "Filter the list by filename (Ctrl+F to focus)")
         self.regex_check = ttk.Checkbutton(b3_row1, text="Regex", variable=self.use_regex, command=self.on_regex_toggle)
@@ -253,56 +252,70 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.path_search_check.pack(side='left', padx=5)
         create_tooltip(self.path_search_check, "Include the full file path when filtering")
 
-        # Row 2: Action buttons (wider, aligned)
+        # Row 2: Action buttons
         b3_row2 = ttk.Frame(block3)
-        b3_row2.pack(fill='x', pady=3)
+        b3_row2.grid(row=2, column=0, sticky='ew', pady=1)
         btn_width = 9
-        btn_padding = (5, 3)  # (horizontal, vertical) padding
-        self.clear_btn = ttk.Button(b3_row2, text="Clear", command=self.clear_filter, width=btn_width, padding=btn_padding)
+        self.clear_btn = ttk.Button(b3_row2, text="Clear", command=self.clear_filter, width=btn_width)
         self.clear_btn.pack(side='left', padx=2)
         create_tooltip(self.clear_btn, "Clear the filename filter")
-        self.keep_btn = ttk_bs.Button(b3_row2, text="Keep", command=self.mark_filtered_keep, bootstyle='success', width=btn_width, padding=btn_padding)
+        self.keep_btn = ttk_bs.Button(b3_row2, text="Keep", command=self.mark_filtered_keep, bootstyle='success', width=btn_width)
         self.keep_btn.pack(side='left', padx=2)
         create_tooltip(self.keep_btn, "Mark all files matching the filter to be KEPT")
-        self.mark_del_btn = ttk_bs.Button(b3_row2, text="Delete", command=self.mark_filtered_delete, bootstyle='danger', width=btn_width, padding=btn_padding)
+        self.mark_del_btn = ttk_bs.Button(b3_row2, text="Delete", command=self.mark_filtered_delete, bootstyle='danger', width=btn_width)
         self.mark_del_btn.pack(side='left', padx=2)
         create_tooltip(self.mark_del_btn, "Mark all files matching the filter to be DELETED")
-        self.reset_btn = ttk.Button(b3_row2, text="Reset", command=self.reset_marks, width=btn_width, padding=btn_padding)
+        self.reset_btn = ttk.Button(b3_row2, text="Reset", command=self.reset_marks, width=btn_width)
         self.reset_btn.pack(side='left', padx=2)
         create_tooltip(self.reset_btn, "Reset all manual keep/delete marks")
 
         # BLOCK 4: Stats
-        block4 = ttk.LabelFrame(toolbar_container, text="Stats", padding=5)
-        block4.pack(side='left', fill='both', expand=True, padx=(5, 0))
+        self.block4 = ttk.LabelFrame(toolbar_container, text="Stats", padding=5)
+        self.block4.pack(side='left', fill='both', expand=True, padx=(5, 0))
 
-        # Status labels inside Stats block (4 rows)
+        # Inner frame for stats to prevent drifting in maximized state
+        self.stats_inner = ttk.Frame(self.block4)
+        self.stats_inner.pack(side='left', anchor='nw')
+
+        # Status labels inside Stats block (Dynamic Grid)
         self.status_font = tkfont.Font(size=9)
-        status_tooltip = "Summary of scan results. Use Space to toggle, Del to mark for removal."
+        self.status_tooltip = "Summary of scan results. Use Space to toggle, Del to mark for removal."
 
-        # Configure grid for alignment
-        block4.columnconfigure(1, weight=1)
+        # Create all possible stat labels (headers and values)
+        self.stat_widgets = {}
 
-        # Row 1: Unique Files
-        ttk.Label(block4, text="Unique Files:", font=self.status_font).grid(row=0, column=0, sticky='w', padx=(5, 0))
-        self.lbl_stats_unique = ttk_bs.Label(block4, text="0", font=self.status_font)
-        self.lbl_stats_unique.grid(row=0, column=1, sticky='w', padx=(5, 0))
+        # Unique Files
+        self.stat_widgets['unique'] = (
+            ttk.Label(self.stats_inner, text="Unique Files:", font=self.status_font),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+        )
+        # Duplicate Groups
+        self.stat_widgets['dup_groups'] = (
+            ttk.Label(self.stats_inner, text="Duplicate Groups:", font=self.status_font),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+        )
+        # Duplicate Files
+        self.stat_widgets['dup_files'] = (
+            ttk.Label(self.stats_inner, text="Duplicate Files:", font=self.status_font),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+        )
+        # Orphaned Images
+        self.stat_widgets['orphaned'] = (
+            ttk.Label(self.stats_inner, text="Orphaned Images:", font=self.status_font),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+        )
+        # Filtered Items
+        self.stat_widgets['filtered'] = (
+            ttk.Label(self.stats_inner, text="Filtered Items:", font=self.status_font),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+        )
+        # Marked for Deletion
+        self.stat_widgets['deletion'] = (
+            ttk.Label(self.stats_inner, text="Marked for Deletion:", font=self.status_font),
+            ttk_bs.Label(self.stats_inner, text="0 B", font=self.status_font)
+        )
 
-        # Row 2: Duplicate Groups
-        ttk.Label(block4, text="Duplicate Groups:", font=self.status_font).grid(row=1, column=0, sticky='w', padx=(5, 0))
-        self.lbl_stats_duplicates = ttk_bs.Label(block4, text="0", font=self.status_font)
-        self.lbl_stats_duplicates.grid(row=1, column=1, sticky='w', padx=(5, 0))
-
-        # Row 3: Orphaned Images
-        ttk.Label(block4, text="Orphaned Images:", font=self.status_font).grid(row=2, column=0, sticky='w', padx=(5, 0))
-        self.lbl_stats_orphaned = ttk_bs.Label(block4, text="0", font=self.status_font)
-        self.lbl_stats_orphaned.grid(row=2, column=1, sticky='w', padx=(5, 0))
-
-        # Row 4: Marked for Deletion
-        ttk.Label(block4, text="Marked for Deletion:", font=self.status_font).grid(row=3, column=0, sticky='w', padx=(5, 0))
-        self.lbl_stats_deletion = ttk_bs.Label(block4, text="0 B", font=self.status_font)
-        self.lbl_stats_deletion.grid(row=3, column=1, sticky='w', padx=(5, 0))
-
-        create_tooltip(block4, status_tooltip)
+        create_tooltip(self.block4, self.status_tooltip)
 
         tree_frame = ttk.Frame(self)
         tree_frame.pack(fill='both', expand=True, padx=5, pady=5)
@@ -466,28 +479,17 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
 
     def update_status_label(self) -> None:
         """Update the status labels with scan results and deletion size information."""
-        # 1. Duplicate Groups
-        num_duplicates = len(self.duplicates)
-        self.lbl_stats_duplicates.config(
-            text=str(num_duplicates),
-            bootstyle='warning' if num_duplicates > 0 else 'default'
-        )
-
-        # 2. Unique Files
+        # 1. Calculate all stats
         num_unique = len(self.non_duplicates)
-        self.lbl_stats_unique.config(
-            text=str(num_unique),
-            bootstyle='success' if num_unique > 0 else 'default'
-        )
-
-        # 3. Orphaned Images
+        num_dup_groups = len(self.duplicates)
+        num_dup_files = sum(len(files) for files in self.duplicates.values())
         num_orphaned = len(self.get_orphaned_images())
-        self.lbl_stats_orphaned.config(
-            text=str(num_orphaned),
-            bootstyle='warning' if num_orphaned > 0 else 'default'
-        )
 
-        # 4. Marked for Deletion
+        # Filtered count (calculated in apply_filter)
+        num_filtered = getattr(self, 'filtered_count', 0)
+        is_filtering = bool(self.filter_text.get())
+
+        # Deletion size
         total_size_to_remove = 0
         items_to_remove = self.tree.tag_has('to_remove')
         files_to_delete_paths = set()
@@ -501,10 +503,9 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
                     if os.path.exists(path):
                         total_size_to_remove += os.path.getsize(path)
                 except Exception:
-                    pass  # Skip files we can't access
+                    pass
 
         if self.scan_images.get():
-            # Calculate which images will be orphaned after deletion of marked ROMs
             all_files = []
             for paths in self.duplicates.values():
                 all_files.extend(paths)
@@ -516,7 +517,6 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
                 if path not in files_to_delete_paths:
                     keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
 
-            # Add size of images that will be deleted
             orphaned_to_delete = self.get_orphaned_images(keep_filenames)
             for p in orphaned_to_delete:
                 try:
@@ -525,10 +525,71 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
                 except Exception:
                     pass
 
-        self.lbl_stats_deletion.config(
-            text=self.format_size(total_size_to_remove),
-            bootstyle='danger' if total_size_to_remove > 0 else 'default'
-        )
+        # 2. Update widget values and determine visibility
+        active_stats = []
+
+        # Unique Files (Success)
+        if num_unique > 0:
+            lbl_h, lbl_v = self.stat_widgets['unique']
+            lbl_v.config(text=str(num_unique), bootstyle='success')
+            active_stats.append('unique')
+
+        # Duplicate Groups (Info)
+        if num_dup_groups > 0:
+            lbl_h, lbl_v = self.stat_widgets['dup_groups']
+            lbl_v.config(text=str(num_dup_groups), bootstyle='info')
+            active_stats.append('dup_groups')
+
+        # Duplicate Files (Info)
+        if num_dup_files > 0:
+            lbl_h, lbl_v = self.stat_widgets['dup_files']
+            lbl_v.config(text=str(num_dup_files), bootstyle='info')
+            active_stats.append('dup_files')
+
+        # Orphaned Images (Warning)
+        if num_orphaned > 0:
+            lbl_h, lbl_v = self.stat_widgets['orphaned']
+            lbl_v.config(text=str(num_orphaned), bootstyle='warning')
+            active_stats.append('orphaned')
+
+        # Filtered Items (Warning - matches highlight)
+        if is_filtering:
+            lbl_h, lbl_v = self.stat_widgets['filtered']
+            lbl_v.config(text=str(num_filtered), bootstyle='warning')
+            active_stats.append('filtered')
+
+        # Marked for Deletion (Danger)
+        if total_size_to_remove > 0:
+            lbl_h, lbl_v = self.stat_widgets['deletion']
+            lbl_v.config(text=self.format_size(total_size_to_remove), bootstyle='danger')
+            active_stats.append('deletion')
+
+        # 3. Dynamic Grid Layout
+        # Hide all first
+        for widgets in self.stat_widgets.values():
+            widgets[0].grid_forget()
+            widgets[1].grid_forget()
+
+        num_active = len(active_stats)
+        if num_active == 0:
+            return
+
+        if num_active <= 3:
+            # Single column layout (up to 3 stats)
+            for i, key in enumerate(active_stats):
+                lbl_h, lbl_v = self.stat_widgets[key]
+                lbl_h.grid(row=i, column=0, sticky='w', padx=(5, 0))
+                lbl_v.grid(row=i, column=1, sticky='w', padx=(5, 10))
+        else:
+            # Two column layout (max 3 rows)
+            for i, key in enumerate(active_stats):
+                col_offset = 0 if i < 3 else 2
+                row = i if i < 3 else i - 3
+                lbl_h, lbl_v = self.stat_widgets[key]
+                lbl_h.grid(row=row, column=col_offset, sticky='w', padx=(5, 0))
+                # Use smaller padding for column 1 to keep columns closer
+                val_padx = (5, 10) if col_offset == 0 else (5, 0)
+                lbl_v.grid(row=row, column=col_offset + 1, sticky='w', padx=val_padx)
 
     def scan(self) -> None:
         """Scan the selected folder for duplicate files with async progress indication."""

@@ -12,11 +12,15 @@ All notable updates to this project are documented here.
   - Manual "Check Now" option remains interactive for immediate feedback.
   - Last update check timestamp and frequency preference are now saved to the INI file.
 - **Enhanced status display**:
-  - Split status into four dedicated rows: Unique Files, Duplicate Groups, Orphaned Images, and Marked for Deletion.
-  - Improved visual hierarchy with themed numerical values (success/warning/danger).
-  - **Dynamic Theming**: Colors now "activate" only when values are greater than zero, keeping the UI clean and focused.
-  - Perfectly aligned values using a grid layout for better readability.
+  - Split status into a dynamic grid with up to six statistics: Unique Files, Duplicate Groups, Duplicate Files, Orphaned Images, Filtered Items, and Marked for Deletion.
+  - **Smart Visibility**: Statistics only appear when they have a value greater than zero, keeping the UI clean and focused.
+  - **Auto-Expanding Layout**: Automatically switches between 1-column and 2-column layouts to minimize vertical space usage.
+  - **Themed Numerical Values**: Improved visual hierarchy with color-coded values (success/info/warning/danger).
+  - **Perfect Alignment**: Used a grid layout for consistent vertical alignment of all numerical values.
   - Clean, non-bold font consistent with the rest of the UI.
+- **UI Uniformity and Alignment**:
+  - Standardized heights for all buttons, entry boxes, and combo boxes across the toolbar.
+  - Aligned the bottom rows of all toolbar blocks for a perfectly balanced, professional appearance.
 
 ### Fixed
 - **Menu Alignment and Layout**:

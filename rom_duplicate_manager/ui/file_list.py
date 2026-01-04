@@ -352,6 +352,7 @@ class FileListMixin:
         """
         text = self.filter_text.get()
         is_empty = not text
+        self.filtered_count = 0
 
         for parent in self.tree.get_children():
             has_matching_child = False
@@ -363,6 +364,8 @@ class FileListMixin:
 
                 if matches_filter or is_empty:
                     has_matching_child = True
+                    if matches_filter:
+                        self.filtered_count += 1
 
                 # Update filtered tag - put filtered first so it overrides other tags
                 current_tags = list(self.tree.item(child, 'tags'))
@@ -379,6 +382,7 @@ class FileListMixin:
                 self.tree.item(parent, open=True)
 
         self.update_tag_colors()
+        self.update_status_label()
 
     def sort_tree(self, col: str, reverse: bool, user_initiated: bool = True) -> None:
         """Sort treeview content when a column header is clicked.
