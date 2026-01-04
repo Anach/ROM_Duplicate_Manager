@@ -6,7 +6,7 @@ custom Toplevel-based dropdown menus for full theme and behavior control.
 
 import platform
 import tkinter as tk
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 
 def _get_menu_font() -> tuple:
@@ -193,12 +193,12 @@ class MenuBarMixin:
 
         # Checkbox indicator for checkbutton items
         if var is not None:
-            check_text = "✓" if var.get() else "  "
+            check_text = "✓" if var.get() else ""
             check_label = tk.Label(
                 frame, text=check_text, bg=self.dropdown_bg, fg=self.dropdown_fg,
-                font=_get_menu_font(), padx=5
+                font=_get_menu_font(), width=2, anchor='center'
             )
-            check_label.pack(side='left')
+            check_label.pack(side='left', padx=(5, 0))
             frame.check_label = check_label  # type: ignore
             frame.var = var  # type: ignore
 
@@ -368,22 +368,31 @@ class MenuBarMixin:
         label: str,
         command: Callable,
         accelerator: Optional[str],
-        var: Optional[tk.BooleanVar],
+        var: Optional[Union[tk.BooleanVar, tk.StringVar]],
         submenu: tk.Toplevel
     ) -> None:
-        """Create a single submenu item entry with theme checkmark."""
+        """Create a single submenu item entry with checkmark support."""
         frame = tk.Frame(parent, bg=self.dropdown_bg)
         frame.pack(fill='x')
 
-        # Check if this is a theme item - show checkmark if current
-        theme_name = label.strip().lower()
-        is_current = hasattr(self, 'current_theme') and self.current_theme == theme_name
-        check_text = "✓" if is_current else "  "
+        # Determine if checkmark should be shown
+        is_current = False
+        if var is not None:
+            if isinstance(var, tk.BooleanVar):
+                is_current = var.get()
+            elif isinstance(var, tk.StringVar):
+                is_current = var.get() == label
+        else:
+            # Fallback to theme check for backward compatibility if no var provided
+            theme_name = label.strip().lower()
+            is_current = hasattr(self, 'current_theme') and self.current_theme == theme_name
+
+        check_text = "✓" if is_current else ""
         check_label = tk.Label(
             frame, text=check_text, bg=self.dropdown_bg, fg=self.dropdown_fg,
-            font=_get_menu_font(), padx=5
+            font=_get_menu_font(), width=2, anchor='center'
         )
-        check_label.pack(side='left')
+        check_label.pack(side='left', padx=(5, 0))
 
         # Main label
         lbl = tk.Label(
@@ -548,12 +557,22 @@ class MenuBarMixin:
             ("Dark Themes", dark_theme_items),  # Submenu
         ]
 
-    def _get_tools_menu_items(self) -> List[Optional[Tuple[str, Callable, Optional[str], Optional[tk.BooleanVar]]]]:
+    def _get_tools_menu_items(self) -> List:
         """Get Tools menu items."""
+        # Build update frequency submenu items
+        update_freq_items = [
+            ("Check Now", lambda: self.check_for_updates(silent=False), None, None),
+            None,  # Separator
+            ("Daily", lambda: self.set_update_frequency("Daily"), None, self.update_frequency),
+            ("Weekly", lambda: self.set_update_frequency("Weekly"), None, self.update_frequency),
+            ("Monthly", lambda: self.set_update_frequency("Monthly"), None, self.update_frequency),
+            ("Never", lambda: self.set_update_frequency("Never"), None, self.update_frequency),
+        ]
+
         return [
             ("Rescan", self.scan, "Ctrl+R", None),
             None,  # Separator
-            ("Check for Updates...", self.check_for_updates, None, None),
+            ("Update Check", update_freq_items),  # Submenu
         ]
 
     def _get_help_menu_items(self) -> List[Optional[Tuple[str, Callable, Optional[str], Optional[tk.BooleanVar]]]]:

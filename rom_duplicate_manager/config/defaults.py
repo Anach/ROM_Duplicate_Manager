@@ -4,7 +4,6 @@ from typing import Dict, Set
 
 # Default file type extensions
 DEFAULT_FILE_TYPES: Dict[str, Set[str]] = {
-    "All Files": set(),  # Empty set means no filtering
     "Archives": {'.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.lzma', '.jar', '.lha', '.lzh'},
     "Disk Image": {'.iso', '.bin', '.cue', '.img', '.mdf', '.mds', '.nrg', '.ccd', '.chd', '.gdi', '.cdi'},
     "System": {
@@ -16,7 +15,8 @@ DEFAULT_FILE_TYPES: Dict[str, Set[str]] = {
         '.vb', '.32x', '.p8', '.png', '.solarus', '.tic', '.love', '.scummvm', '.ldb', '.nx', '.v32'
     },
     "Images": {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.tif', '.webp', '.svg', '.ico'},
-    "Videos": {'.mp4', '.mpg', '.mpeg', '.avi', '.mov', '.wmv', '.mkv'}
+    "Videos": {'.mp4', '.mpg', '.mpeg', '.avi', '.mov', '.wmv', '.mkv'},
+    "All Files": set()  # Empty set means no filtering
 }
 
 # Default language priorities

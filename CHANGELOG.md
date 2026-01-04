@@ -2,16 +2,35 @@
 
 All notable updates to this project are documented here.
 
+## [v1.4.2] - 2026-01-04
+
+### Added
+- **Enhanced Update Check System**:
+  - Converted "Check for Updates" into a sub-menu with automated check options.
+  - Added automated check frequencies: Daily, Weekly, Monthly, and Never.
+  - Automated checks run silently on startup and only notify the user if an update is found.
+  - Manual "Check Now" option remains interactive for immediate feedback.
+  - Last update check timestamp and frequency preference are now saved to the INI file.
+- **Enhanced status display**:
+  - Split status into four dedicated rows: Unique Files, Duplicate Groups, Orphaned Images, and Marked for Deletion.
+  - Improved visual hierarchy with themed numerical values (success/warning/danger).
+  - **Dynamic Theming**: Colors now "activate" only when values are greater than zero, keeping the UI clean and focused.
+  - Perfectly aligned values using a grid layout for better readability.
+  - Clean, non-bold font consistent with the rest of the UI.
+
+### Fixed
+- **Menu Alignment and Layout**:
+  - Fixed a UI glitch where menu labels would shift to the right when a checkmark was displayed.
+  - Implemented fixed-width checkmark labels for consistent alignment across all menus and sub-menus (including Themes).
+
 ## [v1.4.1] - 2026-01-03
 
 
 ### Added
 - Asynchronous file scanning: UI remains responsive during large scans, with progress updates and cancellation support.
 - **Enhanced status display**:
-  - Split status into two rows with better visual hierarchy
-  - "Marked for deletion" line shown only when files are marked (bold formatting)
-  - Dynamic text wrapping for long folder paths with reserved 2-line height
-  - Status container now at top of window for better visibility
+  - Split status into two rows with better visual hierarchy.
+  - Status container now at top of window for better visibility.
 
 ### Changed
 - Refactored main application to use a package structure; removed legacy monolithic files and added a new launcher (`run.py`), supporting `python -m rom_duplicate_manager`.

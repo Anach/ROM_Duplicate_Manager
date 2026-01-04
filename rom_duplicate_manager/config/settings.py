@@ -22,7 +22,8 @@ def load_config() -> configparser.ConfigParser:
 
 def save_config(dark_mode: bool, row_colors: bool, language: str, smart_select: bool,
                 scan_images: bool, match_size: bool, permanent_delete: bool,
-                use_regex: bool, file_type: str, search_in_path: bool, theme: str = 'darkly') -> None:
+                use_regex: bool, file_type: str, search_in_path: bool, theme: str = 'darkly',
+                update_frequency: str = 'Weekly', last_update_check: str = '') -> None:
     """Save application configuration to INI file.
 
     Args:
@@ -37,6 +38,8 @@ def save_config(dark_mode: bool, row_colors: bool, language: str, smart_select: 
         file_type: Current file type filter
         search_in_path: Whether to search in full file paths
         theme: Current ttkbootstrap theme name
+        update_frequency: Frequency of automated update checks
+        last_update_check: Timestamp of the last update check
     """
     config = configparser.ConfigParser()
     config['Settings'] = {
@@ -50,7 +53,9 @@ def save_config(dark_mode: bool, row_colors: bool, language: str, smart_select: 
         'use_regex': str(use_regex),
         'file_type': str(file_type),
         'search_in_path': str(search_in_path),
-        'theme': str(theme)
+        'theme': str(theme),
+        'update_frequency': str(update_frequency),
+        'last_update_check': str(last_update_check)
     }
     with open(CONFIG_FILE, 'w') as f:
         config.write(f)
@@ -72,5 +77,7 @@ def get_default_config() -> Dict[str, Any]:
         'permanent_delete': False,
         'use_regex': False,
         'file_type': 'Archives',
-        'search_in_path': False
+        'search_in_path': False,
+        'update_frequency': 'Weekly',
+        'last_update_check': ''
     }

@@ -14,7 +14,6 @@ Features:
 - Bulk operations with recycle bin or permanent deletion
 
 Author: Anach
-Version: 1.4.0
 License: See LICENSE file
 """
 
@@ -100,6 +99,9 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self._setup_ui_components()
         self._apply_initial_theme()
 
+        # Check for automated updates after UI is ready
+        self.after(1000, self._check_automated_updates)
+
     def _load_saved_settings(self, config: configparser.ConfigParser) -> None:
         """Load saved settings from configuration file."""
         self.theme_saved = config.get('Settings', 'theme', fallback=self.DEFAULT_THEME)
@@ -114,6 +116,8 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.use_regex_saved = config.getboolean('Settings', 'use_regex', fallback=False)
         self.file_type_saved = config.get('Settings', 'file_type', fallback='Archive')
         self.search_in_path_saved = config.getboolean('Settings', 'search_in_path', fallback=False)
+        self.update_frequency_saved = config.get('Settings', 'update_frequency', fallback='Weekly')
+        self.last_update_check_saved = config.get('Settings', 'last_update_check', fallback='')
 
     def _initialize_variables(self) -> None:
         """Initialize all tkinter variables and application state."""
@@ -148,6 +152,8 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.include_subfolders = tk.BooleanVar(value=False)
         self.file_type_filter = tk.StringVar(value=self.file_type_saved)
         self.language_filter = tk.StringVar(value=self.language_saved)
+        self.update_frequency = tk.StringVar(value=self.update_frequency_saved)
+        self.last_update_check = tk.StringVar(value=self.last_update_check_saved)
 
         # Data storage
         self.duplicates = {}
@@ -228,7 +234,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         create_tooltip(self.match_size_check, "Group files by identical size and partial content hash instead of name")
         self.scan_images_check = ttk.Checkbutton(b2_row2, text="Scan Images", variable=self.scan_images, command=self.on_scan_images_toggle)
         self.scan_images_check.pack(side='left', padx=(10, 2))
-        create_tooltip(self.scan_images_check, "Include image files when scanning 'All Files', and auto-delete orphaned images from /images/ folder")
+        create_tooltip(self.scan_images_check, "Auto-delete orphaned images from /images/ folder, or Include image files when scanning 'All Files'")
 
         # BLOCK 3: Filter & Actions
         block3 = ttk.LabelFrame(toolbar_container, text="Filter", padding=5)
@@ -269,32 +275,34 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         block4 = ttk.LabelFrame(toolbar_container, text="Stats", padding=5)
         block4.pack(side='left', fill='both', expand=True, padx=(5, 0))
 
-        # Status labels inside Stats block (two rows with wrapping)
-        self.status_font = tkfont.Font(size=9, weight='bold')
+        # Status labels inside Stats block (4 rows)
+        self.status_font = tkfont.Font(size=9)
         status_tooltip = "Summary of scan results. Use Space to toggle, Del to mark for removal."
 
-        # Calculate height for 2 lines to reserve space
-        line_height = self.status_font.metrics('linespace')
-        two_line_height = line_height * 2 + 4
+        # Configure grid for alignment
+        block4.columnconfigure(1, weight=1)
 
-        # Container frame with fixed height to reserve space for 2 lines
-        status_container = ttk.Frame(block4, height=two_line_height)
-        status_container.pack(anchor='w', padx=5, fill='x', expand=True)
-        status_container.pack_propagate(False)
+        # Row 1: Unique Files
+        ttk.Label(block4, text="Unique Files:", font=self.status_font).grid(row=0, column=0, sticky='w', padx=(5, 0))
+        self.lbl_stats_unique = ttk_bs.Label(block4, text="0", font=self.status_font)
+        self.lbl_stats_unique.grid(row=0, column=1, sticky='w', padx=(5, 0))
 
-        self.status_label = ttk.Label(status_container, text="", font=self.status_font, wraplength=1)
-        self.status_label.pack(anchor='w', fill='both', expand=True)
-        create_tooltip(self.status_label, status_tooltip)
+        # Row 2: Duplicate Groups
+        ttk.Label(block4, text="Duplicate Groups:", font=self.status_font).grid(row=1, column=0, sticky='w', padx=(5, 0))
+        self.lbl_stats_duplicates = ttk_bs.Label(block4, text="0", font=self.status_font)
+        self.lbl_stats_duplicates.grid(row=1, column=1, sticky='w', padx=(5, 0))
 
-        # Bind to update wraplength dynamically based on container width
-        def update_status_wrap(event):
-            if event.width > 10:
-                self.status_label.configure(wraplength=event.width - 10)
-        status_container.bind('<Configure>', update_status_wrap)
+        # Row 3: Orphaned Images
+        ttk.Label(block4, text="Orphaned Images:", font=self.status_font).grid(row=2, column=0, sticky='w', padx=(5, 0))
+        self.lbl_stats_orphaned = ttk_bs.Label(block4, text="0", font=self.status_font)
+        self.lbl_stats_orphaned.grid(row=2, column=1, sticky='w', padx=(5, 0))
 
-        # Second status label for deletion info (initially hidden)
-        self.status_label2 = ttk.Label(block4, text="", font=self.status_font)
-        create_tooltip(self.status_label2, status_tooltip)
+        # Row 4: Marked for Deletion
+        ttk.Label(block4, text="Marked for Deletion:", font=self.status_font).grid(row=3, column=0, sticky='w', padx=(5, 0))
+        self.lbl_stats_deletion = ttk_bs.Label(block4, text="0 B", font=self.status_font)
+        self.lbl_stats_deletion.grid(row=3, column=1, sticky='w', padx=(5, 0))
+
+        create_tooltip(block4, status_tooltip)
 
         tree_frame = ttk.Frame(self)
         tree_frame.pack(fill='both', expand=True, padx=5, pady=5)
@@ -395,7 +403,8 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
             self.scan_images.get(), self.match_size.get(),
             self.permanent_delete.get(), self.use_regex.get(),
             self.file_type_filter.get(), self.search_in_path.get(),
-            self.current_theme
+            self.current_theme,
+            self.update_frequency.get(), self.last_update_check.get()
         )
 
     def browse_folder(self) -> None:
@@ -456,10 +465,29 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         return f"{s} {size_name[i]}"
 
     def update_status_label(self) -> None:
-        """Update the status label with scan results and deletion size information."""
-        status = f"Found {len(self.duplicates)} duplicate group(s) and {len(self.non_duplicates)} unique file(s)."
+        """Update the status labels with scan results and deletion size information."""
+        # 1. Duplicate Groups
+        num_duplicates = len(self.duplicates)
+        self.lbl_stats_duplicates.config(
+            text=str(num_duplicates),
+            bootstyle='warning' if num_duplicates > 0 else 'default'
+        )
 
-        # Calculate total size of files marked for removal
+        # 2. Unique Files
+        num_unique = len(self.non_duplicates)
+        self.lbl_stats_unique.config(
+            text=str(num_unique),
+            bootstyle='success' if num_unique > 0 else 'default'
+        )
+
+        # 3. Orphaned Images
+        num_orphaned = len(self.get_orphaned_images())
+        self.lbl_stats_orphaned.config(
+            text=str(num_orphaned),
+            bootstyle='warning' if num_orphaned > 0 else 'default'
+        )
+
+        # 4. Marked for Deletion
         total_size_to_remove = 0
         items_to_remove = self.tree.tag_has('to_remove')
         files_to_delete_paths = set()
@@ -476,7 +504,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
                     pass  # Skip files we can't access
 
         if self.scan_images.get():
-            # Calculate orphaned images
+            # Calculate which images will be orphaned after deletion of marked ROMs
             all_files = []
             for paths in self.duplicates.values():
                 all_files.extend(paths)
@@ -488,11 +516,6 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
                 if path not in files_to_delete_paths:
                     keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
 
-            # Show current orphaned images
-            orphaned_now = self.get_orphaned_images()
-            if orphaned_now:
-                status += f" | {len(orphaned_now)} orphaned image(s) found."
-
             # Add size of images that will be deleted
             orphaned_to_delete = self.get_orphaned_images(keep_filenames)
             for p in orphaned_to_delete:
@@ -502,18 +525,10 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
                 except Exception:
                     pass
 
-        # Update first status label
-        if hasattr(self, 'status_label'):
-            self.status_label.config(text=status)
-
-        # Update second status label (deletion info) - show/hide as needed
-        if hasattr(self, 'status_label2'):
-            if total_size_to_remove > 0:
-                self.status_label2.config(text=f"Marked for deletion: {self.format_size(total_size_to_remove)}")
-                if not self.status_label2.winfo_ismapped():
-                    self.status_label2.pack(anchor='w', padx=5, fill='x', expand=True)
-            else:
-                self.status_label2.pack_forget()
+        self.lbl_stats_deletion.config(
+            text=self.format_size(total_size_to_remove),
+            bootstyle='danger' if total_size_to_remove > 0 else 'default'
+        )
 
     def scan(self) -> None:
         """Scan the selected folder for duplicate files with async progress indication."""
@@ -658,6 +673,43 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
             create_tooltip(self.delete_button, "Move all marked files AND orphaned images to the recycle bin")
         else:
             create_tooltip(self.delete_button, "Move all marked or selected files to the recycle bin")
+
+    def set_update_frequency(self, freq: str) -> None:
+        """Set the automated update check frequency."""
+        self.update_frequency.set(freq)
+        self.save_settings()
+
+    def _check_automated_updates(self) -> None:
+        """Check if an automated update check is due based on frequency."""
+        freq = self.update_frequency.get()
+        if freq == 'Never':
+            return
+
+        last_check_str = self.last_update_check.get()
+        if not last_check_str:
+            # First time check
+            self.check_for_updates(silent=True)
+            return
+
+        try:
+            import datetime
+            last_check = datetime.datetime.fromisoformat(last_check_str)
+            now = datetime.datetime.now()
+            delta = now - last_check
+
+            should_check = False
+            if freq == 'Daily' and delta.days >= 1:
+                should_check = True
+            elif freq == 'Weekly' and delta.days >= 7:
+                should_check = True
+            elif freq == 'Monthly' and delta.days >= 30:
+                should_check = True
+
+            if should_check:
+                self.check_for_updates(silent=True)
+        except (ValueError, TypeError):
+            # If timestamp is invalid, check now
+            self.check_for_updates(silent=True)
 
     def on_smart_select_change(self, *args) -> None:
         """Handle smart select checkbox change with user confirmation."""
