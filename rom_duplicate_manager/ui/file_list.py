@@ -381,6 +381,10 @@ class FileListMixin:
             else:
                 self.tree.item(parent, open=True)
 
+        # Re-sort to bring filtered items to top if filtering is active
+        if not is_empty:
+            self.sort_tree(self.sort_column, self.sort_reverse, user_initiated=False)
+
         self.update_tag_colors()
         self.update_status_label()
 
@@ -405,31 +409,51 @@ class FileListMixin:
                 return self.tree.set(item_id, col).lower()
 
         def get_child_sort_key(item_id):
-            """Get sort key for child items - marked items always first."""
+            """Get sort key for child items - marked or filtered items always first."""
             tags = self.tree.item(item_id, 'tags')
-            # Marked items (to_remove or base) get priority 0, unmarked get 1
-            is_marked = 'to_remove' in tags or 'base' in tags
-            priority = 0 if is_marked else 1
+            # Prioritize filtered items first, then marked items (to_remove or base)
+            if 'filtered' in tags:
+                priority = 0
+            elif 'to_remove' in tags or 'base' in tags:
+                priority = 1
+            else:
+                priority = 2
             text = get_sort_text(item_id)
             return (priority, text)
 
+        def sort_groups(groups):
+            """Sort groups into filtered and non-filtered subgroups."""
+            filtered_groups = []
+            other_groups = []
+            for text, k in groups:
+                has_filtered = any('filtered' in self.tree.item(c, 'tags') for c in self.tree.get_children(k))
+                if has_filtered:
+                    filtered_groups.append((text, k))
+                else:
+                    other_groups.append((text, k))
+
+            filtered_groups.sort(key=lambda t: t[0].lower(), reverse=reverse)
+            other_groups.sort(key=lambda t: t[0].lower(), reverse=reverse)
+            return filtered_groups, other_groups
+
         # Get all top-level items (groups) and separate by type
-        duplicate_groups = []
-        unique_groups = []
+        duplicate_groups_raw = []
+        unique_groups_raw = []
         for k in self.tree.get_children(''):
             tags = self.tree.item(k, 'tags')
             text = self.tree.item(k, 'text')
             if 'duplicate_group' in tags:
-                duplicate_groups.append((text, k))
+                duplicate_groups_raw.append((text, k))
             else:
-                unique_groups.append((text, k))
+                unique_groups_raw.append((text, k))
 
-        # Sort each section alphabetically by name
-        duplicate_groups.sort(key=lambda t: t[0].lower(), reverse=reverse)
-        unique_groups.sort(key=lambda t: t[0].lower(), reverse=reverse)
+        # Separate each section into filtered and non-filtered
+        dup_filtered, dup_others = sort_groups(duplicate_groups_raw)
+        uni_filtered, uni_others = sort_groups(unique_groups_raw)
 
-        # Combine: duplicates first, then uniques
-        all_groups = duplicate_groups + unique_groups
+        # Combine: All filtered groups first (duplicates then uniques),
+        # followed by remaining groups (duplicates then uniques)
+        all_groups = dup_filtered + uni_filtered + dup_others + uni_others
 
         # Rearrange groups in the tree
         for index, (val, k) in enumerate(all_groups):
@@ -438,20 +462,22 @@ class FileListMixin:
             # Sort children within each group
             children = list(self.tree.get_children(k))
 
-            # Sort by priority first (marked=0, unmarked=1), then by text
-            # When reverse is True, we want text reversed but marked items still on top
+            # Sort by priority first (filtered=0, marked=1, unmarked=2), then by text
+            # When reverse is True, we want text reversed but prioritized items still on top
             if reverse:
-                # Separate marked and unmarked items
-                marked = [c for c in children if 'to_remove' in self.tree.item(c, 'tags') or 'base' in self.tree.item(c, 'tags')]
-                unmarked = [c for c in children if c not in marked]
+                # Separate prioritized and unmarked items
+                filtered = [c for c in children if 'filtered' in self.tree.item(c, 'tags')]
+                marked = [c for c in children if ('to_remove' in self.tree.item(c, 'tags') or 'base' in self.tree.item(c, 'tags')) and c not in filtered]
+                unmarked = [c for c in children if c not in filtered and c not in marked]
 
                 # Sort each subgroup by text in reverse order
+                filtered.sort(key=get_sort_text, reverse=True)
                 marked.sort(key=get_sort_text, reverse=True)
                 unmarked.sort(key=get_sort_text, reverse=True)
 
-                children = marked + unmarked
+                children = filtered + marked + unmarked
             else:
-                # Normal sort: marked first, then alphabetically
+                # Normal sort: prioritized first, then alphabetically
                 children.sort(key=get_child_sort_key)
 
             for c_index, c_id in enumerate(children):
