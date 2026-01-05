@@ -20,15 +20,14 @@ def load_config() -> configparser.ConfigParser:
     return config
 
 
-def save_config(dark_mode: bool, row_colors: bool, language: str, smart_select: bool,
+def save_config(row_colors: bool, language: str, smart_select: bool,
                 scan_images: bool, match_size: bool, permanent_delete: bool,
-                use_regex: bool, file_type: str, search_in_path: bool, theme: str = 'darkly',
-                update_frequency: str = 'Weekly', last_update_check: str = '',
-                category: str = 'All') -> None:
+                use_regex: bool, search_in_path: bool, include_subfolders: bool,
+                theme: str = 'darkly', update_frequency: str = 'Weekly',
+                last_update_check: str = '') -> None:
     """Save application configuration to INI file.
 
     Args:
-        dark_mode: Whether dark mode is enabled
         row_colors: Whether alternating row colors are enabled
         language: Preferred language setting
         smart_select: Whether smart selection is enabled
@@ -36,16 +35,14 @@ def save_config(dark_mode: bool, row_colors: bool, language: str, smart_select: 
         match_size: Whether size-based matching is enabled
         permanent_delete: Whether permanent deletion is enabled
         use_regex: Whether regex filtering is enabled
-        file_type: Current file type filter
         search_in_path: Whether to search in full file paths
+        include_subfolders: Whether to include sub-folders when scanning
         theme: Current ttkbootstrap theme name
         update_frequency: Frequency of automated update checks
         last_update_check: Timestamp of the last update check
-        category: Current category filter
     """
     config = configparser.ConfigParser()
     config['Settings'] = {
-        'dark_mode': str(dark_mode),
         'row_colors': str(row_colors),
         'language': str(language),
         'smart_select': str(smart_select),
@@ -53,9 +50,8 @@ def save_config(dark_mode: bool, row_colors: bool, language: str, smart_select: 
         'match_size': str(match_size),
         'permanent_delete': str(permanent_delete),
         'use_regex': str(use_regex),
-        'file_type': str(file_type),
-        'category': str(category),
         'search_in_path': str(search_in_path),
+        'include_subfolders': str(include_subfolders),
         'theme': str(theme),
         'update_frequency': str(update_frequency),
         'last_update_check': str(last_update_check)
@@ -71,7 +67,6 @@ def get_default_config() -> Dict[str, Any]:
         Dictionary of default configuration values
     """
     return {
-        'dark_mode': False,
         'row_colors': True,
         'language': 'English',
         'smart_select': True,
@@ -79,9 +74,8 @@ def get_default_config() -> Dict[str, Any]:
         'match_size': False,
         'permanent_delete': False,
         'use_regex': False,
-        'file_type': 'Archives',
-        'category': 'All',
         'search_in_path': False,
+        'include_subfolders': False,
         'update_frequency': 'Weekly',
         'last_update_check': ''
     }

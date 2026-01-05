@@ -109,7 +109,6 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
     def _load_saved_settings(self, config: configparser.ConfigParser) -> None:
         """Load saved settings from configuration file."""
         self.theme_saved = config.get('Settings', 'theme', fallback=self.DEFAULT_THEME)
-        self.dark_mode_saved = config.getboolean('Settings', 'dark_mode', fallback=False)
         self.row_colors_saved = config.getboolean('Settings', 'row_colors',
                                                  fallback=config.getboolean('Settings', 'alternate_colors', fallback=True))
         self.language_saved = config.get('Settings', 'language', fallback='Any')
@@ -118,16 +117,18 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.match_size_saved = config.getboolean('Settings', 'match_size', fallback=False)
         self.permanent_delete_saved = config.getboolean('Settings', 'permanent_delete', fallback=False)
         self.use_regex_saved = config.getboolean('Settings', 'use_regex', fallback=False)
-        self.file_type_saved = config.get('Settings', 'file_type', fallback='Archives')
-        self.category_saved = config.get('Settings', 'category', fallback='All')
         self.search_in_path_saved = config.getboolean('Settings', 'search_in_path', fallback=False)
+        self.include_subfolders_saved = config.getboolean('Settings', 'include_subfolders', fallback=False)
+        self.file_type_saved = 'Archives'
+        self.category_saved = 'All'
         self.update_frequency_saved = config.get('Settings', 'update_frequency', fallback='Weekly')
         self.last_update_check_saved = config.get('Settings', 'last_update_check', fallback='')
 
     def _initialize_variables(self) -> None:
         """Initialize all tkinter variables and application state."""
         # Theme variables
-        self.dark_mode_enabled = tk.BooleanVar(value=self.dark_mode_saved)
+        initial_dark_mode = self.current_theme in self.DARK_THEMES
+        self.dark_mode_enabled = tk.BooleanVar(value=initial_dark_mode)
         self.row_colors = tk.BooleanVar(value=self.row_colors_saved)
 
         # Get colors from ttkbootstrap theme
@@ -154,7 +155,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.permanent_delete = tk.BooleanVar(value=self.permanent_delete_saved)
         self.use_regex = tk.BooleanVar(value=self.use_regex_saved)
         self.search_in_path = tk.BooleanVar(value=self.search_in_path_saved)
-        self.include_subfolders = tk.BooleanVar(value=False)
+        self.include_subfolders = tk.BooleanVar(value=self.include_subfolders_saved)
         self.file_type_filter = tk.StringVar(value=self.file_type_saved)
         self.category_filter = tk.StringVar(value=self.category_saved)
         self.language_filter = tk.StringVar(value=self.language_saved)
@@ -218,7 +219,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.category_combo.bind('<<ComboboxSelected>>', self.on_category_change)
         self.update_category_tooltip()
 
-        self.subfolders_check = ttk.Checkbutton(block1, text="Sub-Folders", variable=self.include_subfolders, command=self.scan)
+        self.subfolders_check = ttk.Checkbutton(block1, text="Sub-Folders", variable=self.include_subfolders, command=self.on_include_subfolders_toggle)
         self.subfolders_check.grid(row=1, column=4, sticky='w', padx=(5, 1), pady=1)
         create_tooltip(self.subfolders_check, "Include sub-folders in the scan")
 
@@ -428,14 +429,13 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
     def save_settings(self) -> None:
         """Save current application settings to configuration file."""
         save_config(
-            self.dark_mode_enabled.get(), self.row_colors.get(),
+            self.row_colors.get(),
             self.language_filter.get(), self.smart_select.get(),
             self.scan_images.get(), self.match_size.get(),
             self.permanent_delete.get(), self.use_regex.get(),
-            self.file_type_filter.get(), self.search_in_path.get(),
+            self.search_in_path.get(), self.include_subfolders.get(),
             self.current_theme,
-            self.update_frequency.get(), self.last_update_check.get(),
-            self.category_filter.get()
+            self.update_frequency.get(), self.last_update_check.get()
         )
 
     def browse_folder(self) -> None:
@@ -745,6 +745,11 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         category = self.category_filter.get()
         tip = CATEGORY_TOOLTIPS.get(category, "Filter files by category")
         create_tooltip(self.category_combo, tip)
+
+    def on_include_subfolders_toggle(self) -> None:
+        """Handle include sub-folders checkbox toggle."""
+        self.scan()
+        self.save_settings()
 
     def on_scan_images_toggle(self) -> None:
         """Handle scan images checkbox toggle."""
