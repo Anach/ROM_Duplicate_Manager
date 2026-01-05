@@ -257,11 +257,11 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         # Row 1: Filter entry, Regex, Add Path
         b3_row1 = ttk.Frame(block3)
         b3_row1.grid(row=0, column=0, sticky='ew', pady=1)
-        self.filter_entry = ttk.Entry(b3_row1, textvariable=self.filter_text, width=28)
+        self.filter_entry = ttk.Entry(b3_row1, textvariable=self.filter_text, width=23)
         self.filter_entry.pack(side='left', padx=2)
         create_tooltip(self.filter_entry, "Filter the list by filename (Ctrl+F to focus)")
         self.regex_check = ttk.Checkbutton(b3_row1, text="Regex", variable=self.use_regex, command=self.on_regex_toggle)
-        self.regex_check.pack(side='left', padx=(8, 5))
+        self.regex_check.pack(side='left', padx=(11, 12))
         create_tooltip(self.regex_check, "Use Regular Expressions for filtering")
         self.path_search_check = ttk.Checkbutton(b3_row1, text="Add Path", variable=self.search_in_path, command=self.on_filter_change)
         self.path_search_check.pack(side='left', padx=5)
@@ -270,7 +270,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         # Row 2: Action buttons
         b3_row2 = ttk.Frame(block3)
         b3_row2.grid(row=2, column=0, sticky='ew', pady=1)
-        btn_width = 9
+        btn_width = 8
         self.clear_btn = ttk.Button(b3_row2, text="Clear", command=self.clear_filter, width=btn_width)
         self.clear_btn.pack(side='left', padx=2)
         create_tooltip(self.clear_btn, "Clear the filename filter")
@@ -286,7 +286,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
 
         # BLOCK 4: Stats
         self.block4 = ttk.LabelFrame(toolbar_container, text="Stats", padding=2)
-        self.block4.pack(side='left', fill='both', expand=True, padx=(5, 0))
+        self.block4.pack(side='left', fill='both', expand=True, padx=(2, 0))
 
         # Inner frame for stats to prevent drifting in maximized state
         self.stats_inner = ttk.Frame(self.block4)
@@ -301,33 +301,33 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
 
         # Unique Files
         self.stat_widgets['unique'] = (
-            ttk.Label(self.stats_inner, text="Unique Files:", font=self.status_font),
-            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+            ttk.Label(self.stats_inner, text="Unique Files:", font=self.status_font, padding=0),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font, padding=0)
         )
         # Duplicate Groups
         self.stat_widgets['dup_groups'] = (
-            ttk.Label(self.stats_inner, text="Duplicate Groups:", font=self.status_font),
-            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+            ttk.Label(self.stats_inner, text="Duplicate Groups:", font=self.status_font, padding=0),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font, padding=0)
         )
         # Duplicate Files
         self.stat_widgets['dup_files'] = (
-            ttk.Label(self.stats_inner, text="Duplicate Files:", font=self.status_font),
-            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+            ttk.Label(self.stats_inner, text="Duplicate Files:", font=self.status_font, padding=0),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font, padding=0)
         )
         # Orphaned Images
         self.stat_widgets['orphaned'] = (
-            ttk.Label(self.stats_inner, text="Orphaned Images:", font=self.status_font),
-            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+            ttk.Label(self.stats_inner, text="Orphaned Images:", font=self.status_font, padding=0),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font, padding=0)
         )
         # Filtered Items
         self.stat_widgets['filtered'] = (
-            ttk.Label(self.stats_inner, text="Filtered Items:", font=self.status_font),
-            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font)
+            ttk.Label(self.stats_inner, text="Filtered Items:", font=self.status_font, padding=0),
+            ttk_bs.Label(self.stats_inner, text="0", font=self.status_font, padding=0)
         )
         # Marked for Deletion
         self.stat_widgets['deletion'] = (
-            ttk.Label(self.stats_inner, text="Marked for Deletion:", font=self.status_font),
-            ttk_bs.Label(self.stats_inner, text="0 B", font=self.status_font)
+            ttk.Label(self.stats_inner, text="Marked for Deletion:", font=self.status_font, padding=0),
+            ttk_bs.Label(self.stats_inner, text="0 B", font=self.status_font, padding=0)
         )
 
         create_tooltip(self.block4, self.status_tooltip)
@@ -594,17 +594,19 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
             # Single column layout (up to 3 stats)
             for i, key in enumerate(active_stats):
                 lbl_h, lbl_v = self.stat_widgets[key]
-                lbl_h.grid(row=i, column=0, sticky='w', padx=(2, 0))
-                lbl_v.grid(row=i, column=1, sticky='w', padx=(2, 2))
+                lbl_h.grid(row=i, column=0, sticky='w', padx=(0, 0))
+                lbl_v.grid(row=i, column=1, sticky='w', padx=(5, 5))
         else:
             # Two column layout (max 3 rows)
             for i, key in enumerate(active_stats):
                 col_offset = 0 if i < 3 else 2
                 row = i if i < 3 else i - 3
                 lbl_h, lbl_v = self.stat_widgets[key]
-                lbl_h.grid(row=row, column=col_offset, sticky='w', padx=(2, 0))
-                # Use smaller padding for column 1 to keep columns closer
-                val_padx = (2, 2) if col_offset == 0 else (2, 0)
+                # Use 0 left padding for headings, and 5px left padding for the second column
+                head_padx = (0, 0) if col_offset == 0 else (5, 0)
+                lbl_h.grid(row=row, column=col_offset, sticky='w', padx=head_padx)
+                # Use 0 left padding for values to keep them close to headings
+                val_padx = (5, 5) if col_offset == 0 else (0, 2)
                 lbl_v.grid(row=row, column=col_offset + 1, sticky='w', padx=val_padx)
 
     def scan(self) -> None:
