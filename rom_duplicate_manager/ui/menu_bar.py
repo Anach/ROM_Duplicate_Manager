@@ -368,7 +368,7 @@ class MenuBarMixin:
         label: str,
         command: Callable,
         accelerator: Optional[str],
-        var: Optional[Union[tk.BooleanVar, tk.StringVar]],
+        var: Optional[Union[tk.BooleanVar, tk.StringVar, tk.IntVar]],
         submenu: tk.Toplevel
     ) -> None:
         """Create a single submenu item entry with checkmark support."""
@@ -382,6 +382,9 @@ class MenuBarMixin:
                 is_current = var.get()
             elif isinstance(var, tk.StringVar):
                 is_current = var.get() == label
+            elif isinstance(var, tk.IntVar):
+                # Check if the value is mentioned in the label, e.g., "(10)" in "Medium (10)"
+                is_current = f"({var.get()})" in label
         else:
             # Fallback to theme check for backward compatibility if no var provided
             theme_name = label.strip().lower()
@@ -550,8 +553,17 @@ class MenuBarMixin:
         light_theme_items = [(t.title(), lambda t=t: self.switch_theme(t), None, None) for t in self.LIGHT_THEMES]
         dark_theme_items = [(t.title(), lambda t=t: self.switch_theme(t), None, None) for t in self.DARK_THEMES]
 
+        # Build font size submenu items
+        font_size_items = [
+            ("Small (8)", lambda: self.set_font_size(8), None, self.font_size),
+            ("Medium (10)", lambda: self.set_font_size(10), None, self.font_size),
+            ("Large (12)", lambda: self.set_font_size(12), None, self.font_size),
+        ]
+
         return [
             ("Row Colors", self.toggle_row_colors, None, self.row_colors),
+            None,  # Separator
+            ("Font Size", font_size_items),  # Submenu
             None,  # Separator
             ("Light Themes", light_theme_items),  # Submenu
             ("Dark Themes", dark_theme_items),  # Submenu

@@ -23,7 +23,8 @@ def load_config() -> configparser.ConfigParser:
 def save_config(row_colors: bool, language: str, smart_select: bool,
                 scan_images: bool, match_size: bool, permanent_delete: bool,
                 use_regex: bool, search_in_path: bool, include_subfolders: bool,
-                theme: str = 'darkly', update_frequency: str = 'Weekly',
+                theme: str = 'darkly', font_size: int = 10,
+                update_frequency: str = 'Weekly',
                 last_update_check: str = '') -> None:
     """Save application configuration to INI file.
 
@@ -53,6 +54,7 @@ def save_config(row_colors: bool, language: str, smart_select: bool,
         'search_in_path': str(search_in_path),
         'include_subfolders': str(include_subfolders),
         'theme': str(theme),
+        'font_size': str(font_size),
         'update_frequency': str(update_frequency),
         'last_update_check': str(last_update_check)
     }
@@ -76,6 +78,8 @@ def get_default_config() -> Dict[str, Any]:
         'use_regex': False,
         'search_in_path': False,
         'include_subfolders': False,
+        'theme': 'darkly',
+        'font_size': 10,
         'update_frequency': 'Weekly',
         'last_update_check': ''
     }

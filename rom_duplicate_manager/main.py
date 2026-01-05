@@ -109,6 +109,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
     def _load_saved_settings(self, config: configparser.ConfigParser) -> None:
         """Load saved settings from configuration file."""
         self.theme_saved = config.get('Settings', 'theme', fallback=self.DEFAULT_THEME)
+        self.font_size_saved = config.getint('Settings', 'font_size', fallback=10)
         self.row_colors_saved = config.getboolean('Settings', 'row_colors',
                                                  fallback=config.getboolean('Settings', 'alternate_colors', fallback=True))
         self.language_saved = config.get('Settings', 'language', fallback='Any')
@@ -130,6 +131,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         initial_dark_mode = self.current_theme in self.DARK_THEMES
         self.dark_mode_enabled = tk.BooleanVar(value=initial_dark_mode)
         self.row_colors = tk.BooleanVar(value=self.row_colors_saved)
+        self.font_size = tk.IntVar(value=self.font_size_saved)
 
         # Get colors from ttkbootstrap theme
         colors = self.style.colors
@@ -347,7 +349,6 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
 
         # ttkbootstrap handles the style automatically via Window initialization
         # Configure Treeview styling
-        self.style.configure('Treeview', rowheight=25)
         self.style.configure('Treeview.Heading', borderwidth=0, padding=(5, 2))
 
         self.tree = ttk.Treeview(tree_frame, columns=('path',), selectmode='extended',
@@ -429,13 +430,19 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
     def save_settings(self) -> None:
         """Save current application settings to configuration file."""
         save_config(
-            self.row_colors.get(),
-            self.language_filter.get(), self.smart_select.get(),
-            self.scan_images.get(), self.match_size.get(),
-            self.permanent_delete.get(), self.use_regex.get(),
-            self.search_in_path.get(), self.include_subfolders.get(),
-            self.current_theme,
-            self.update_frequency.get(), self.last_update_check.get()
+            row_colors=self.row_colors.get(),
+            language=self.language_filter.get(),
+            smart_select=self.smart_select.get(),
+            scan_images=self.scan_images.get(),
+            match_size=self.match_size.get(),
+            permanent_delete=self.permanent_delete.get(),
+            use_regex=self.use_regex.get(),
+            search_in_path=self.search_in_path.get(),
+            include_subfolders=self.include_subfolders.get(),
+            theme=self.current_theme,
+            font_size=self.font_size.get(),
+            update_frequency=self.update_frequency.get(),
+            last_update_check=self.last_update_check.get()
         )
 
     def browse_folder(self) -> None:
@@ -786,6 +793,12 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
     def set_update_frequency(self, freq: str) -> None:
         """Set the automated update check frequency."""
         self.update_frequency.set(freq)
+        self.save_settings()
+
+    def set_font_size(self, size: int) -> None:
+        """Set the font size for the main scan results."""
+        self.font_size.set(size)
+        self.update_tag_colors()
         self.save_settings()
 
     def _check_automated_updates(self) -> None:

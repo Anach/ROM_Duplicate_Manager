@@ -160,25 +160,29 @@ class ThemeMixin:
         """Update treeview tag colors based on current theme."""
         is_dark = self.dark_mode_enabled.get()
         colors = self.style.colors
+        font_size = self.font_size.get()
 
-        # Create strikethrough font for items marked for deletion
-        default_font = tkfont.nametofont('TkDefaultFont')
-        strikethrough_font = tkfont.Font(
-            family=default_font.cget('family'),
-            size=default_font.cget('size'),
-            overstrike=True
-        )
+        # Create fonts for the treeview
+        default_font_name = tkfont.nametofont('TkDefaultFont').cget('family')
+        tree_font = tkfont.Font(family=default_font_name, size=font_size)
+        strikethrough_font = tkfont.Font(family=default_font_name, size=font_size, overstrike=True)
+
+        # Update Treeview style with the new font and row height
+        # 8 -> 20, 10 -> 25, 12 -> 30
+        row_height = int(font_size * 2.5)
+        self.style.configure('Treeview', font=tree_font, rowheight=row_height)
 
         # Use semantic colors from ttkbootstrap
         # filtered tag configured first so it takes priority when combined with other tags
-        self.tree.tag_configure('filtered', background=colors.warning, foreground='black')
+        self.tree.tag_configure('filtered', background=colors.warning, foreground='black', font=tree_font)
         self.tree.tag_configure('to_remove', background=colors.danger, foreground='white', font=strikethrough_font)
-        self.tree.tag_configure('base', background=colors.success, foreground='white')
+        self.tree.tag_configure('base', background=colors.success, foreground='white', font=tree_font)
 
-        if is_dark:
-            self.tree.tag_configure('group', background=colors.dark, foreground=colors.fg)
-        else:
-            self.tree.tag_configure('group', background=colors.light, foreground=colors.fg)
+        # Style group tags
+        group_bg = colors.dark if is_dark else colors.light
+        self.tree.tag_configure('duplicate_group', background=group_bg, foreground=colors.fg, font=tree_font)
+        self.tree.tag_configure('unique_group', background=group_bg, foreground=colors.fg, font=tree_font)
+        self.tree.tag_configure('group', background=group_bg, foreground=colors.fg, font=tree_font)
 
     def toggle_row_colors(self) -> None:
         """Toggle alternating row colors and save preference."""
@@ -190,15 +194,18 @@ class ThemeMixin:
         if self.row_colors.get():
             colors = self.style.colors
             is_dark = self.dark_mode_enabled.get()
+            font_size = self.font_size.get()
+            default_font_name = tkfont.nametofont('TkDefaultFont').cget('family')
+            tree_font = tkfont.Font(family=default_font_name, size=font_size)
 
             if is_dark:
                 # Dark mode alternating colors - slightly different shades
-                self.tree.tag_configure('oddrow', background=colors.bg)
-                self.tree.tag_configure('evenrow', background=colors.dark)
+                self.tree.tag_configure('oddrow', background=colors.bg, font=tree_font)
+                self.tree.tag_configure('evenrow', background=colors.dark, font=tree_font)
             else:
                 # Light mode alternating colors
-                self.tree.tag_configure('oddrow', background='white')
-                self.tree.tag_configure('evenrow', background=colors.light)
+                self.tree.tag_configure('oddrow', background='white', font=tree_font)
+                self.tree.tag_configure('evenrow', background=colors.light, font=tree_font)
 
             self.refresh_row_colors()
         else:
