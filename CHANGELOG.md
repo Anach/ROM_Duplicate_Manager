@@ -2,6 +2,31 @@
 
 All notable updates to this project are documented here.
 
+## [v1.4.3] - 2026-01-06
+
+### Added
+- **Font Size Adjustment**:
+  - Added a new "Font Size" submenu to the View menu with Small (8), Medium (10), and Large (12) options.
+  - Adjustment specifically targets the main scan results (Treeview) for better readability while keeping the rest of the UI at default size.
+  - Font size preference is saved to the INI configuration.
+- **Unified Theme Fonts**: Standardized font sizes across all themes (fixing an issue where the 'Darkly' theme used a different default size).
+- **Enhanced Category Filtering**: Added a new category selection combobox to filter results by Games, Demos, Betas, Utilities, and more.
+- **Cross-platform releases**: GitHub Actions (YML) now builds self-contained archives for Windows, macOS, and Linux; Python entrypoints remain available for manual runs.
+
+### Changed
+- **Improved Stats Display**:
+  - Refined the stats block with better vertical padding and sub-heading spacing for improved readability.
+  - Optimized toolbar layout to ensure stats remain fully visible at the default window size.
+- **Enhanced Sorting**: Manual filter items now sort to the top of their groups, making bulk marking much more efficient.
+- **Configuration Persistence**:
+  - "Sub-Folders" setting now saves to the INI file.
+  - "File Type" and "Category" filters now correctly revert to defaults on startup.
+  - Replaced legacy dark-mode logic with a unified theme-based configuration.
+
+### Fixed
+- Fixed alignment and spacing issues in the stats sub-headings.
+- Resolved a potential crash when applying fonts to the Treeview widget.
+
 ## [v1.4.2] - 2026-01-04
 
 ### Added

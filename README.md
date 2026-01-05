@@ -1,6 +1,6 @@
 # ROM Duplicate Manager
 
-A cross-platform GUI tool for duplicate ROM, archive, and image file management with modern themes and intelligent sorting. Detect and clean duplicates by filename *or* true file content, delete safely or permanently, manage orphaned images, and customize your experience with multiple light and dark themes—all with an intuitive interface and comprehensive tooltips.
+A cross-platform GUI tool for duplicate ROM, archive, and image file management with modern themes and intelligent sorting. Detect and clean duplicates by filename *or* true file content, delete safely or permanently, manage orphaned images, and customize your experience with multiple light and dark themes - all with an intuitive interface and comprehensive tooltips.
 
 <img width="1102" height="632" alt="image" src="https://github.com/user-attachments/assets/1bb25c6c-2e37-4051-9259-fa0eb610520a" />
 
@@ -47,7 +47,15 @@ A cross-platform GUI tool for duplicate ROM, archive, and image file management 
   - 10 light themes: cosmo, flatly, journal, litera, lumen, minty, pulse, sandstone, united, yeti
   - 5 dark themes: cyborg, darkly, solar, superhero, vapor
   - Toggle row color alternation
-  - All settings saved and restored
+  - Theme choice is saved between sessions
+
+- **Adjustable list font size**
+  - View > Font Size menu with Small (8), Medium (10), Large (12)
+  - Tree rows auto-resize with the chosen font and the preference is saved
+
+- **Saved preferences**
+  - Remembers language, Smart Select, Match Size, Permanent Delete, Scan Images, regex/path filter, include sub-folders, theme, font size, row colors
+  - File-Type and Category always start at Archives and All on launch
 
 - **Keyboard shortcuts**
   - `Ctrl+O`: Browse for folder
@@ -57,9 +65,8 @@ A cross-platform GUI tool for duplicate ROM, archive, and image file management 
   - `Delete`: Mark selected items for deletion
 
 - **Enhanced status display**
-  - Two-row layout with automatic text wrapping
-  - Shows marked file count and total size
-  - "Marked for deletion" row hidden when nothing marked
+  - Responsive grid shows only active stats (unique, duplicate groups/files, orphaned images, filtered count, marked size)
+  - "Marked for deletion" row hidden when nothing is marked
 
 - **Batch operations with progress**
   - Progress dialogs for scans/deletes with current file display
@@ -84,14 +91,20 @@ A cross-platform GUI tool for duplicate ROM, archive, and image file management 
 1. Run with Python:
    ```
    pip install -r requirements.txt
-   python rom_duplicate_manager.py
+   python run.py
    ```
-   Or download a [Windows executable from Releases](https://github.com/Anach/ROM_Duplicate_Manager/releases/latest).
+   or:
+   ```
+   python -m rom_duplicate_manager
+   ```
+   Or download a self-contained archive/executable for **Windows**, **macOS**, or **Linux** from [Releases](https://github.com/Anach/ROM_Duplicate_Manager/releases/latest).
 2. Browse/select your ROM folder.
-3. (Optional) Adjust subfolder, file type, language, Match Size, Permanent Delete, Scan Images, regex/path filter options, and Smart Select preferences.
+3. (Optional) Adjust Sub-Folders (saved), File-Type (defaults to Archives), Category (defaults to All), language, Match Size, Permanent Delete, Scan Images, regex/path filter options, Smart Select, and View > Font Size.
 4. Click **Scan**. Inspect/override Smart Select marks if needed.
-5. Click **Delete Selected** to delete (Recycle Bin/Trash or permanent — your choice).
+5. Click **Delete Selected** to delete (Recycle Bin/Trash or permanent - your choice).
 6. Use keyboard shortcuts for faster review, and hover for instant help.
+
+Note: File-Type and Category reset to Archives/All on each launch; other preferences (including Sub-Folders and font size) are saved to `rom_duplicate_manager.ini`.
 
 ## Requirements
 
@@ -101,15 +114,21 @@ A cross-platform GUI tool for duplicate ROM, archive, and image file management 
 
 ## File Structure
 
-- `rom_duplicate_manager.py` — Main code
-- `requirements.txt` — Python dependencies
-- `rom_duplicate_manager.ini` — User config/prefs (auto-generated)
-- `rom_duplicate_manager.spec` — PyInstaller Windows build script
+- `run.py` - Simple launcher (`python run.py` or `python -m rom_duplicate_manager`)
+- `rom_duplicate_manager/` - Application package:
+  - `main.py` - Main window and orchestration
+  - `ui/` - UI components (menu bar, themes, dialogs, file list)
+  - `core/` - Scanning, duplicate detection, file operations
+  - `config/` - Settings load/save and defaults
+  - `utils/` - Helpers, icons, updater
+- `requirements.txt` - Python dependencies
+- `rom_duplicate_manager.ini` - User config/prefs (theme, font size, filters; auto-generated)
+- `rom_duplicate_manager.spec` - PyInstaller Windows build script
 - `.gitignore`, `LICENSE`, etc.
 
 ## Platform Support
 
-- Windows, macOS, Linux (via Python, or Windows executable)
+- Windows, macOS, Linux (self-contained archives from Releases or run via Python)
 
 ## License
 
