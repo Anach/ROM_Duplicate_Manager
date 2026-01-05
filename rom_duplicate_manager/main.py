@@ -295,6 +295,8 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         # Status labels inside Stats block (Dynamic Grid)
         self.status_font = tkfont.Font(size=9)
         self.status_tooltip = "Summary of scan results. Use Space to toggle, Del to mark for removal."
+        # Space between stat rows (does not add padding above first or below last row)
+        self.stat_row_spacing = 6
 
         # Create all possible stat labels (headers and values)
         self.stat_widgets = {}
@@ -592,21 +594,25 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
 
         if num_active <= 3:
             # Single column layout (up to 3 stats)
+            last_row = num_active - 1
             for i, key in enumerate(active_stats):
+                row_pady = (0, self.stat_row_spacing) if i < last_row else (0, 0)
                 lbl_h, lbl_v = self.stat_widgets[key]
-                lbl_h.grid(row=i, column=0, sticky='w', padx=(2, 0))
-                lbl_v.grid(row=i, column=1, sticky='w', padx=(2, 2))
+                lbl_h.grid(row=i, column=0, sticky='w', padx=(2, 0), pady=row_pady)
+                lbl_v.grid(row=i, column=1, sticky='w', padx=(2, 2), pady=row_pady)
         else:
             # Two column layout (max 3 rows)
+            last_row = min(2, num_active - 1)
             for i, key in enumerate(active_stats):
                 col_offset = 0 if i < 3 else 2
                 row = i if i < 3 else i - 3
+                row_pady = (0, self.stat_row_spacing) if row < last_row else (0, 0)
                 lbl_h, lbl_v = self.stat_widgets[key]
 
-                lbl_h.grid(row=row, column=col_offset, sticky='w', padx=(2, 0))
+                lbl_h.grid(row=row, column=col_offset, sticky='w', padx=(2, 0), pady=row_pady)
                 # Use 0 left padding for values to keep them close to headings
                 val_padx = (2, 2) if col_offset == 0 else (2, 0)
-                lbl_v.grid(row=row, column=col_offset + 1, sticky='w', padx=val_padx)
+                lbl_v.grid(row=row, column=col_offset + 1, sticky='w', padx=val_padx, pady=row_pady)
 
     def scan(self) -> None:
         """Scan the selected folder for duplicate files with async progress indication."""
