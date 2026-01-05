@@ -594,19 +594,18 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
             # Single column layout (up to 3 stats)
             for i, key in enumerate(active_stats):
                 lbl_h, lbl_v = self.stat_widgets[key]
-                lbl_h.grid(row=i, column=0, sticky='w', padx=(0, 0))
-                lbl_v.grid(row=i, column=1, sticky='w', padx=(5, 5))
+                lbl_h.grid(row=i, column=0, sticky='w', padx=(2, 0))
+                lbl_v.grid(row=i, column=1, sticky='w', padx=(2, 2))
         else:
             # Two column layout (max 3 rows)
             for i, key in enumerate(active_stats):
                 col_offset = 0 if i < 3 else 2
                 row = i if i < 3 else i - 3
                 lbl_h, lbl_v = self.stat_widgets[key]
-                # Use 0 left padding for headings, and 5px left padding for the second column
-                head_padx = (0, 0) if col_offset == 0 else (5, 0)
-                lbl_h.grid(row=row, column=col_offset, sticky='w', padx=head_padx)
+
+                lbl_h.grid(row=row, column=col_offset, sticky='w', padx=(2, 0))
                 # Use 0 left padding for values to keep them close to headings
-                val_padx = (5, 5) if col_offset == 0 else (0, 2)
+                val_padx = (2, 2) if col_offset == 0 else (2, 0)
                 lbl_v.grid(row=row, column=col_offset + 1, sticky='w', padx=val_padx)
 
     def scan(self) -> None:
