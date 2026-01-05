@@ -28,7 +28,10 @@ from typing import Dict, List, Set, Tuple, Optional, Callable, Union, Any
 
 # Import from modular structure (relative imports within package)
 from .config.settings import load_config, save_config, CONFIG_FILE
-from .config.defaults import DEFAULT_FILE_TYPES, DEFAULT_LANGUAGE_PRIORITIES
+from .config.defaults import (
+    DEFAULT_FILE_TYPES, DEFAULT_LANGUAGE_PRIORITIES, ROM_CATEGORIES,
+    CATEGORY_TOOLTIPS, NON_GAME_KEYWORDS
+)
 from .utils.icons import get_icon_photo
 from .utils.helpers import (
     normalize_filename, extract_version, extract_languages, get_partial_hash, format_size
@@ -115,7 +118,8 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.match_size_saved = config.getboolean('Settings', 'match_size', fallback=False)
         self.permanent_delete_saved = config.getboolean('Settings', 'permanent_delete', fallback=False)
         self.use_regex_saved = config.getboolean('Settings', 'use_regex', fallback=False)
-        self.file_type_saved = config.get('Settings', 'file_type', fallback='Archive')
+        self.file_type_saved = config.get('Settings', 'file_type', fallback='Archives')
+        self.category_saved = config.get('Settings', 'category', fallback='All')
         self.search_in_path_saved = config.getboolean('Settings', 'search_in_path', fallback=False)
         self.update_frequency_saved = config.get('Settings', 'update_frequency', fallback='Weekly')
         self.last_update_check_saved = config.get('Settings', 'last_update_check', fallback='')
@@ -152,6 +156,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         self.search_in_path = tk.BooleanVar(value=self.search_in_path_saved)
         self.include_subfolders = tk.BooleanVar(value=False)
         self.file_type_filter = tk.StringVar(value=self.file_type_saved)
+        self.category_filter = tk.StringVar(value=self.category_saved)
         self.language_filter = tk.StringVar(value=self.language_saved)
         self.update_frequency = tk.StringVar(value=self.update_frequency_saved)
         self.last_update_check = tk.StringVar(value=self.last_update_check_saved)
@@ -183,28 +188,38 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         block1 = ttk.LabelFrame(toolbar_container, text="Location", padding=5)
         block1.pack(side='left', fill='both', padx=(0, 5))
         block1.columnconfigure(1, weight=1)
-        block1.rowconfigure(1, weight=1)  # Spacer row
+        block1.columnconfigure(3, weight=1)
 
         # Row 1: Folder entry and Browse
-        self.folder_entry = ttk.Entry(block1, textvariable=self.folder, width=28)
-        self.folder_entry.grid(row=0, column=0, columnspan=2, sticky='ew', padx=2, pady=1)
+        self.folder_entry = ttk.Entry(block1, textvariable=self.folder, width=30)
+        self.folder_entry.grid(row=0, column=0, columnspan=4, sticky='ew', padx=2, pady=1)
         self.folder_entry.bind('<Return>', lambda e: self.scan())
         create_tooltip(self.folder_entry, "Current folder path. Press Enter or Ctrl+R to rescan.")
         self.browse_btn = ttk.Button(block1, text="Browse", command=self.browse_folder)
-        self.browse_btn.grid(row=0, column=2, sticky='ew', padx=2, pady=1)
+        self.browse_btn.grid(row=0, column=4, sticky='ew', padx=2, pady=1)
         create_tooltip(self.browse_btn, "Select a folder to scan for duplicates")
 
-        # Row 2: File Type and Sub-folders
-        block1.columnconfigure(0, minsize=70)
-        ttk.Label(block1, text="File Type:").grid(row=2, column=0, sticky='w', padx=2, pady=1)
+        # Row 2: File Type, Category, and Sub-folders
+        block1.columnconfigure(0, minsize=40)
+
+        ttk.Label(block1, text="File-Type:").grid(row=1, column=0, sticky='w', padx=1, pady=1)
         self.type_combo = ttk.Combobox(block1, textvariable=self.file_type_filter,
                                        values=list(self.file_types.keys()),
-                                       state='readonly', width=12)
-        self.type_combo.grid(row=2, column=1, sticky='w', padx=2, pady=1)
+                                       state='readonly', width=8)
+        self.type_combo.grid(row=1, column=1, sticky='ew', padx=2, pady=1)
         self.type_combo.bind('<<ComboboxSelected>>', self.on_file_type_change)
-        create_tooltip(self.type_combo, "Filter files by file-types")
-        self.subfolders_check = ttk.Checkbutton(block1, text="Sub-folders", variable=self.include_subfolders, command=self.scan)
-        self.subfolders_check.grid(row=2, column=2, sticky='w', padx=(10, 10), pady=1)
+        create_tooltip(self.type_combo, "Filter files by file-types (Archives, System, etc.)")
+
+        ttk.Label(block1, text="Category:").grid(row=1, column=2, sticky='w', padx=1, pady=1)
+        self.category_combo = ttk.Combobox(block1, textvariable=self.category_filter,
+                                           values=list(ROM_CATEGORIES.keys()),
+                                           state='readonly', width=8)
+        self.category_combo.grid(row=1, column=3, sticky='ew', padx=2, pady=1)
+        self.category_combo.bind('<<ComboboxSelected>>', self.on_category_change)
+        self.update_category_tooltip()
+
+        self.subfolders_check = ttk.Checkbutton(block1, text="Sub-Folders", variable=self.include_subfolders, command=self.scan)
+        self.subfolders_check.grid(row=1, column=4, sticky='w', padx=(5, 1), pady=1)
         create_tooltip(self.subfolders_check, "Include sub-folders in the scan")
 
         # BLOCK 2: Scan Options
@@ -270,7 +285,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         create_tooltip(self.reset_btn, "Reset all manual keep/delete marks")
 
         # BLOCK 4: Stats
-        self.block4 = ttk.LabelFrame(toolbar_container, text="Stats", padding=5)
+        self.block4 = ttk.LabelFrame(toolbar_container, text="Stats", padding=2)
         self.block4.pack(side='left', fill='both', expand=True, padx=(5, 0))
 
         # Inner frame for stats to prevent drifting in maximized state
@@ -417,7 +432,8 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
             self.permanent_delete.get(), self.use_regex.get(),
             self.file_type_filter.get(), self.search_in_path.get(),
             self.current_theme,
-            self.update_frequency.get(), self.last_update_check.get()
+            self.update_frequency.get(), self.last_update_check.get(),
+            self.category_filter.get()
         )
 
     def browse_folder(self) -> None:
@@ -578,17 +594,17 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
             # Single column layout (up to 3 stats)
             for i, key in enumerate(active_stats):
                 lbl_h, lbl_v = self.stat_widgets[key]
-                lbl_h.grid(row=i, column=0, sticky='w', padx=(5, 0))
-                lbl_v.grid(row=i, column=1, sticky='w', padx=(5, 10))
+                lbl_h.grid(row=i, column=0, sticky='w', padx=(2, 0))
+                lbl_v.grid(row=i, column=1, sticky='w', padx=(2, 2))
         else:
             # Two column layout (max 3 rows)
             for i, key in enumerate(active_stats):
                 col_offset = 0 if i < 3 else 2
                 row = i if i < 3 else i - 3
                 lbl_h, lbl_v = self.stat_widgets[key]
-                lbl_h.grid(row=row, column=col_offset, sticky='w', padx=(5, 0))
+                lbl_h.grid(row=row, column=col_offset, sticky='w', padx=(2, 0))
                 # Use smaller padding for column 1 to keep columns closer
-                val_padx = (5, 10) if col_offset == 0 else (5, 0)
+                val_padx = (2, 2) if col_offset == 0 else (2, 0)
                 lbl_v.grid(row=row, column=col_offset + 1, sticky='w', padx=val_padx)
 
     def scan(self) -> None:
@@ -643,6 +659,11 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         # Pass None for extension filter when scanning all files
         scan_ext_filter = None if is_all_files else ext_filter
 
+        # Category filtering
+        category = self.category_filter.get()
+        cat_filter = ROM_CATEGORIES.get(category)
+        is_games_only = (category == "Games")
+
         self._scanner.start_scan(
             folder,
             self.include_subfolders.get(),
@@ -650,7 +671,10 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
             self.match_size.get(),
             system_exts,
             ignore_system_prefix,
-            exclude_exts
+            exclude_exts,
+            cat_filter,
+            is_games_only,
+            NON_GAME_KEYWORDS
         )
 
         def poll_scanner():
@@ -702,6 +726,18 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         """Handle file type filter change."""
         self.scan()
         self.save_settings()
+
+    def on_category_change(self, event: Optional[tk.Event] = None) -> None:
+        """Handle category filter change."""
+        self.update_category_tooltip()
+        self.scan()
+        self.save_settings()
+
+    def update_category_tooltip(self) -> None:
+        """Update the category combobox tooltip based on selection."""
+        category = self.category_filter.get()
+        tip = CATEGORY_TOOLTIPS.get(category, "Filter files by category")
+        create_tooltip(self.category_combo, tip)
 
     def on_scan_images_toggle(self) -> None:
         """Handle scan images checkbox toggle."""

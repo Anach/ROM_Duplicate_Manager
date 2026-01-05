@@ -7,6 +7,7 @@ import os
 import re
 from typing import List, Tuple
 from rom_duplicate_manager.utils.helpers import extract_languages, extract_version
+from rom_duplicate_manager.config.defaults import NON_GAME_KEYWORDS
 
 
 class DuplicateLogicMixin:
@@ -40,6 +41,17 @@ class DuplicateLogicMixin:
         # Quality indicators (lower is worse)
         is_low_priority = 1 if re.search(r'\(proto|\(demo|\(sample|\(beta', filename_lower) else 0
 
+        # Utility/Non-game indicators (lower is worse)
+        filename_no_spaces = filename_lower.replace(' ', '')
+        is_utility = 0
+        for kw in NON_GAME_KEYWORDS:
+            if kw in filename_lower:
+                is_utility = 1
+                break
+            if ' ' in kw and kw.replace(' ', '') in filename_no_spaces:
+                is_utility = 1
+                break
+
         languages = extract_languages(filename)
         actual_langs = languages - {'Unknown'}
         num_langs = len(actual_langs)
@@ -69,7 +81,8 @@ class DuplicateLogicMixin:
                     format_priority = -1
 
         # Return priority tuple (lower values = higher priority)
-        return (is_not_in_root, is_low_priority) + tuple(-v for v in version) + \
+        # is_utility is placed early to ensure games are preferred over utilities
+        return (is_not_in_root, is_utility, is_low_priority) + tuple(-v for v in version) + \
                (-is_world, -has_lang, -format_priority, -num_langs, length, filename)
 
     def get_base_file(self, files: List[str]) -> str:

@@ -71,7 +71,10 @@ class AsyncScanner:
                    match_size: bool = False,
                    system_extensions: Optional[Set[str]] = None,
                    ignore_system_prefix: bool = False,
-                   exclude_extensions: Optional[Set[str]] = None) -> None:
+                   exclude_extensions: Optional[Set[str]] = None,
+                   category_filter: Optional[Set[str]] = None,
+                   is_games_only: bool = False,
+                   non_game_keywords: Optional[Set[str]] = None) -> None:
         """Start an asynchronous scan in a background thread.
 
         Args:
@@ -82,6 +85,9 @@ class AsyncScanner:
             system_extensions: Optional set of ROM/system extensions for prefix stripping
             ignore_system_prefix: Ignore 3-4 digit catalog prefixes on system ROMs
             exclude_extensions: Set of file extensions to skip when extension_filter is None
+            category_filter: Set of keywords for specific category filtering
+            is_games_only: Whether to exclude all non-game keywords
+            non_game_keywords: Set of all non-game keywords for exclusion
         """
         if self.is_running:
             return  # Don't start a new scan if one is already running
@@ -98,7 +104,8 @@ class AsyncScanner:
         self._thread = threading.Thread(
             target=self._scan_thread,
             args=(folder, recursive, extension_filter, match_size,
-                  system_extensions, ignore_system_prefix, exclude_extensions),
+                  system_extensions, ignore_system_prefix, exclude_extensions,
+                  category_filter, is_games_only, non_game_keywords),
             daemon=True
         )
         self._thread.start()
@@ -108,7 +115,10 @@ class AsyncScanner:
                      match_size: bool,
                      system_extensions: Optional[Set[str]],
                      ignore_system_prefix: bool,
-                     exclude_extensions: Optional[Set[str]]) -> None:
+                     exclude_extensions: Optional[Set[str]],
+                     category_filter: Optional[Set[str]] = None,
+                     is_games_only: bool = False,
+                     non_game_keywords: Optional[Set[str]] = None) -> None:
         """Internal thread function that performs the actual scan."""
         try:
             import time
@@ -136,7 +146,8 @@ class AsyncScanner:
             duplicates, non_duplicates = _scan_folder_internal(
                 folder, recursive, extension_filter, match_size,
                 progress_callback, system_extensions, ignore_system_prefix,
-                exclude_extensions
+                exclude_extensions, category_filter, is_games_only,
+                non_game_keywords
             )
 
             if self._cancelled.is_set():
@@ -162,35 +173,71 @@ def _scan_folder_internal(folder: str, recursive: bool,
                           progress_callback: Optional[Callable[[int, int, str], bool]],
                           system_extensions: Optional[Set[str]],
                           ignore_system_prefix: bool,
-                          exclude_extensions: Optional[Set[str]]) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
+                          exclude_extensions: Optional[Set[str]],
+                          category_filter: Optional[Set[str]] = None,
+                          is_games_only: bool = False,
+                          non_game_keywords: Optional[Set[str]] = None) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
     """Internal scanning implementation with cancellation support.
 
     The progress_callback returns True to continue, False to cancel.
     """
     file_list = []
+
+    # Normalize filters
+    ext_filter = {e.lower() for e in extension_filter} if extension_filter else set()
+    cat_filter = {c.lower() for c in category_filter} if category_filter else set()
+    ng_keywords = {k.lower() for k in non_game_keywords} if non_game_keywords else set()
+
+    def should_include(filename: str) -> bool:
+        _, ext = os.path.splitext(filename)
+        ext_lower = ext.lower()
+        filename_lower = filename.lower()
+        filename_no_spaces = filename_lower.replace(' ', '')
+
+        # 1. Extension Filter (Mandatory if provided)
+        if ext_filter and ext_lower not in ext_filter:
+            return False
+
+        # 2. Exclusion Filter (Mandatory if provided)
+        if not ext_filter and exclude_extensions and ext_lower in exclude_extensions:
+            return False
+
+        # 3. Category Filter
+        if is_games_only and ng_keywords:
+            # Exclude if any non-game keyword matches
+            for kw in ng_keywords:
+                if kw in filename_lower:
+                    return False
+                if ' ' in kw and kw.replace(' ', '') in filename_no_spaces:
+                    return False
+        elif cat_filter:
+            # Include ONLY if at least one category keyword matches
+            matches_cat = False
+            for kw in cat_filter:
+                if kw in filename_lower:
+                    matches_cat = True
+                    break
+                if ' ' in kw and kw.replace(' ', '') in filename_no_spaces:
+                    matches_cat = True
+                    break
+            if not matches_cat:
+                return False
+
+        return True
+
     if recursive:
         for root, dirs, files in os.walk(folder):
             for f in files:
-                _, ext = os.path.splitext(f)
-                ext_lower = ext.lower()
-                if extension_filter and ext_lower not in extension_filter:
-                    continue
-                if not extension_filter and exclude_extensions and ext_lower in exclude_extensions:
-                    continue
-                file_list.append(os.path.join(root, f).replace('\\', '/'))
+                if should_include(f):
+                    file_list.append(os.path.join(root, f).replace('\\', '/'))
     else:
         if os.path.exists(folder):
             try:
                 with os.scandir(folder) as entries:
                     for entry in entries:
                         if entry.is_file(follow_symlinks=False):
-                            _, ext = os.path.splitext(entry.name)
-                            ext_lower = ext.lower()
-                            if extension_filter and ext_lower not in extension_filter:
-                                continue
-                            if not extension_filter and exclude_extensions and ext_lower in exclude_extensions:
-                                continue
-                            file_list.append(entry.path.replace('\\', '/'))
+                            if should_include(entry.name):
+                                file_list.append(entry.path.replace('\\', '/'))
             except PermissionError:
                 pass
 
@@ -255,7 +302,10 @@ def _scan_folder_internal(folder: str, recursive: bool,
 def scan_folder(folder: str, recursive: bool = False, extension_filter: Optional[Set[str]] = None,
                 match_size: bool = False, progress_callback: Optional[Callable] = None,
                 system_extensions: Optional[Set[str]] = None, ignore_system_prefix: bool = False,
-                exclude_extensions: Optional[Set[str]] = None) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
+                exclude_extensions: Optional[Set[str]] = None,
+                category_filter: Optional[Set[str]] = None,
+                is_games_only: bool = False,
+                non_game_keywords: Optional[Set[str]] = None) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
     """Scan folder for duplicate files using name-based or size-based matching.
 
     This is the synchronous API for backwards compatibility.
@@ -269,6 +319,9 @@ def scan_folder(folder: str, recursive: bool = False, extension_filter: Optional
         progress_callback: Optional callback function for progress updates
         system_extensions: Optional set of ROM/system extensions for prefix stripping
         ignore_system_prefix: Ignore 3-4 digit catalog prefixes on system ROMs when True
+        category_filter: Set of keywords for specific category filtering
+        is_games_only: Whether to exclude all non-game keywords
+        non_game_keywords: Set of all non-game keywords for exclusion
 
     Returns:
         Tuple of (duplicates_dict, non_duplicates_dict) where keys are group names
@@ -283,7 +336,8 @@ def scan_folder(folder: str, recursive: bool = False, extension_filter: Optional
     return _scan_folder_internal(
         folder, recursive, extension_filter, match_size,
         wrapped_callback, system_extensions, ignore_system_prefix,
-        exclude_extensions
+        exclude_extensions, category_filter, is_games_only,
+        non_game_keywords
     )
 
 

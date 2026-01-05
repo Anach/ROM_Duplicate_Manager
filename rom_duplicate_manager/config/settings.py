@@ -23,7 +23,8 @@ def load_config() -> configparser.ConfigParser:
 def save_config(dark_mode: bool, row_colors: bool, language: str, smart_select: bool,
                 scan_images: bool, match_size: bool, permanent_delete: bool,
                 use_regex: bool, file_type: str, search_in_path: bool, theme: str = 'darkly',
-                update_frequency: str = 'Weekly', last_update_check: str = '') -> None:
+                update_frequency: str = 'Weekly', last_update_check: str = '',
+                category: str = 'All') -> None:
     """Save application configuration to INI file.
 
     Args:
@@ -40,6 +41,7 @@ def save_config(dark_mode: bool, row_colors: bool, language: str, smart_select: 
         theme: Current ttkbootstrap theme name
         update_frequency: Frequency of automated update checks
         last_update_check: Timestamp of the last update check
+        category: Current category filter
     """
     config = configparser.ConfigParser()
     config['Settings'] = {
@@ -52,6 +54,7 @@ def save_config(dark_mode: bool, row_colors: bool, language: str, smart_select: 
         'permanent_delete': str(permanent_delete),
         'use_regex': str(use_regex),
         'file_type': str(file_type),
+        'category': str(category),
         'search_in_path': str(search_in_path),
         'theme': str(theme),
         'update_frequency': str(update_frequency),
@@ -77,6 +80,7 @@ def get_default_config() -> Dict[str, Any]:
         'permanent_delete': False,
         'use_regex': False,
         'file_type': 'Archives',
+        'category': 'All',
         'search_in_path': False,
         'update_frequency': 'Weekly',
         'last_update_check': ''
