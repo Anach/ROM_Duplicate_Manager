@@ -2,7 +2,7 @@
 
 A cross-platform GUI tool for duplicate ROM, archive, and image file management with modern themes and intelligent sorting. Detect and clean duplicates by filename *or* true file content, delete safely or permanently, manage orphaned images, and customize your experience with multiple light and dark themes - all with an intuitive interface and comprehensive tooltips.
 
-<img width="1102" height="632" alt="image" src="https://github.com/user-attachments/assets/1bb25c6c-2e37-4051-9259-fa0eb610520a" />
+<img width="1282" height="752" alt="image" src="https://github.com/user-attachments/assets/7dab7358-41ff-467d-969c-2f63f408f96e" />
 
 ---
 
