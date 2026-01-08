@@ -291,6 +291,8 @@ class FileListMixin:
         """
         text = self.filter_text.get()
         if not text:
+            if self.tree.selection():
+                self.mark_selected_keep()
             return
 
         for parent in self.tree.get_children():
@@ -314,6 +316,8 @@ class FileListMixin:
         """
         text = self.filter_text.get()
         if not text:
+            if self.tree.selection():
+                self.mark_selected_delete()
             return
 
         for parent in self.tree.get_children():

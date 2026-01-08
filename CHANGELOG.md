@@ -8,6 +8,7 @@ All notable updates to this project are documented here.
 - Scan Images now always checks orphaned images against all scanned files, independent of File-Type and Category filters.
 - Delete Selected now deletes all marked items (plus any additional selections) instead of only one item in single-file groups.
 - Marked items retain their strikethrough styling even when a manual filter highlight is active.
+- Keep/Delete filter actions now apply to selected items when the manual filter is empty.
 
 ## [v1.4.3] - 2026-01-06
 
