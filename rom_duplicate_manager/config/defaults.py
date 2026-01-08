@@ -27,7 +27,7 @@ DEFAULT_FILE_TYPES: Dict[str, Set[str]] = {
         '.prg', '.t64', '.tap', '.crt', '.gb', '.gbc', '.gba', '.md', '.smd', '.gen', '.60', '.sms',
         '.nes', '.fds', '.smc', '.sfc', '.fig', '.swc', '.n64', '.v64', '.z64', '.pbp', '.cso', '.neo',
         '.pce', '.sgx', '.ws', '.wsc', '.col', '.int', '.vec', '.min', '.sv', '.gg', '.ngp', '.ngc',
-        '.vb', '.32x', '.p8', '.png', '.solarus', '.tic', '.love', '.scummvm', '.ldb', '.nx', '.v32'
+        '.vb', '.32x', '.p8', '.solarus', '.tic', '.love', '.scummvm', '.ldb', '.nx', '.v32', '.mgw'
     },
     "Images": {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff', '.tif', '.webp', '.svg', '.ico'},
     "Videos": {'.mp4', '.mpg', '.mpeg', '.avi', '.mov', '.wmv', '.mkv'},

@@ -27,6 +27,13 @@ All notable updates to this project are documented here.
 - Fixed alignment and spacing issues in the stats sub-headings.
 - Resolved a potential crash when applying fonts to the Treeview widget.
 
+## [v1.4.4] - 2026-01-08
+
+### Fixed
+- Scan Images now always checks orphaned images against all scanned files, independent of File-Type and Category filters.
+- Delete Selected now deletes all marked items (plus any additional selections) instead of only one item in single-file groups.
+- Marked items retain their strikethrough styling even when a manual filter highlight is active.
+
 ## [v1.4.2] - 2026-01-04
 
 ### Added

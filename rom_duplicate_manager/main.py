@@ -167,6 +167,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
         # Data storage
         self.duplicates = {}
         self.non_duplicates = {}
+        self._all_file_base_counts: Optional[Dict[str, int]] = None
 
         # Async scanner instance
         self._scanner = AsyncScanner()
@@ -452,6 +453,32 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
             self.folder.set(folder)
             self.scan()
 
+    def _build_keep_filenames(self, exclude_paths: Optional[Set[str]] = None) -> Set[str]:
+        """Build a set of base filenames for image orphan checks."""
+        if self._all_file_base_counts is not None:
+            if not exclude_paths:
+                return set(self._all_file_base_counts.keys())
+
+            counts = self._all_file_base_counts.copy()
+            for path in exclude_paths:
+                base_name = os.path.splitext(os.path.basename(path))[0].lower()
+                if base_name in counts:
+                    counts[base_name] -= 1
+                    if counts[base_name] <= 0:
+                        del counts[base_name]
+            return set(counts.keys())
+
+        keep_filenames = set()
+        for paths in self.duplicates.values():
+            for path in paths:
+                if not exclude_paths or path not in exclude_paths:
+                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
+        for paths in self.non_duplicates.values():
+            for path in paths:
+                if not exclude_paths or path not in exclude_paths:
+                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
+        return keep_filenames
+
     def get_orphaned_images(self, keep_filenames: Optional[Set[str]] = None) -> List[str]:
         """Get list of orphaned image files that don't have corresponding ROMs."""
         folder = self.folder.get()
@@ -463,14 +490,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
             return []
 
         if keep_filenames is None:
-            keep_filenames = set()
-            # Generate keep list from current scan results
-            for paths in self.duplicates.values():
-                for path in paths:
-                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
-            for paths in self.non_duplicates.values():
-                for path in paths:
-                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
+            keep_filenames = self._build_keep_filenames()
 
         image_extensions = self.file_types.get("Images", set())
         orphaned = []
@@ -531,17 +551,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
                     pass
 
         if self.scan_images.get():
-            all_files = []
-            for paths in self.duplicates.values():
-                all_files.extend(paths)
-            for paths in self.non_duplicates.values():
-                all_files.extend(paths)
-
-            keep_filenames = set()
-            for path in all_files:
-                if path not in files_to_delete_paths:
-                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
-
+            keep_filenames = self._build_keep_filenames(exclude_paths=files_to_delete_paths)
             orphaned_to_delete = self.get_orphaned_images(keep_filenames)
             for p in orphaned_to_delete:
                 try:
@@ -714,6 +724,7 @@ class DuplicateManager(ThemeMixin, MenuBarMixin, FileListMixin, DialogMixin, Dup
                 # Scan finished successfully
                 self.duplicates = result.duplicates or {}
                 self.non_duplicates = result.non_duplicates or {}
+                self._all_file_base_counts = result.all_file_base_counts
                 progress_popup.destroy()
                 self.populate_tree()
                 self.update_status_label()

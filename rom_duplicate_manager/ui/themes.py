@@ -174,7 +174,7 @@ class ThemeMixin:
 
         # Use semantic colors from ttkbootstrap
         # filtered tag configured first so it takes priority when combined with other tags
-        self.tree.tag_configure('filtered', background=colors.warning, foreground='black', font=tree_font)
+        self.tree.tag_configure('filtered', background=colors.warning, foreground='black')
         self.tree.tag_configure('to_remove', background=colors.danger, foreground='white', font=strikethrough_font)
         self.tree.tag_configure('base', background=colors.success, foreground='white', font=tree_font)
 

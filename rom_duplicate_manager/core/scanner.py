@@ -24,6 +24,7 @@ class ScanResult:
     status: ScanStatus
     duplicates: Optional[Dict[str, List[str]]] = None
     non_duplicates: Optional[Dict[str, List[str]]] = None
+    all_file_base_counts: Optional[Dict[str, int]] = None
     progress: int = 0
     total: int = 0
     message: str = ""
@@ -124,6 +125,8 @@ class AsyncScanner:
             import time
             last_update_time = 0.0
             update_interval = 0.05  # 50ms between progress updates (20 updates/sec max)
+            all_file_base_counts: Dict[str, int] = {}
+            images_dir = os.path.join(folder, 'images')
 
             def progress_callback(current: int, total: int, msg: str) -> bool:
                 """Report progress with time-based throttling."""
@@ -147,7 +150,7 @@ class AsyncScanner:
                 folder, recursive, extension_filter, match_size,
                 progress_callback, system_extensions, ignore_system_prefix,
                 exclude_extensions, category_filter, is_games_only,
-                non_game_keywords
+                non_game_keywords, all_file_base_counts, images_dir
             )
 
             if self._cancelled.is_set():
@@ -156,7 +159,8 @@ class AsyncScanner:
                 self._result_queue.put(ScanResult(
                     status=ScanStatus.COMPLETE,
                     duplicates=duplicates,
-                    non_duplicates=non_duplicates
+                    non_duplicates=non_duplicates,
+                    all_file_base_counts=all_file_base_counts
                 ))
 
         except Exception as e:
@@ -176,7 +180,9 @@ def _scan_folder_internal(folder: str, recursive: bool,
                           exclude_extensions: Optional[Set[str]],
                           category_filter: Optional[Set[str]] = None,
                           is_games_only: bool = False,
-                          non_game_keywords: Optional[Set[str]] = None) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
+                          non_game_keywords: Optional[Set[str]] = None,
+                          all_file_base_counts: Optional[Dict[str, int]] = None,
+                          base_counts_exclude_dir: Optional[str] = None) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
     """Internal scanning implementation with cancellation support.
 
     The progress_callback returns True to continue, False to cancel.
@@ -187,6 +193,17 @@ def _scan_folder_internal(folder: str, recursive: bool,
     ext_filter = {e.lower() for e in extension_filter} if extension_filter else set()
     cat_filter = {c.lower() for c in category_filter} if category_filter else set()
     ng_keywords = {k.lower() for k in non_game_keywords} if non_game_keywords else set()
+    exclude_dir_norm = None
+    if base_counts_exclude_dir:
+        exclude_dir_norm = os.path.normcase(os.path.normpath(base_counts_exclude_dir))
+
+    def is_in_excluded_dir(path: str) -> bool:
+        if not exclude_dir_norm:
+            return False
+        path_norm = os.path.normcase(os.path.normpath(path))
+        if path_norm == exclude_dir_norm:
+            return True
+        return path_norm.startswith(exclude_dir_norm + os.sep)
 
     def should_include(filename: str) -> bool:
         _, ext = os.path.splitext(filename)
@@ -227,15 +244,23 @@ def _scan_folder_internal(folder: str, recursive: bool,
 
     if recursive:
         for root, dirs, files in os.walk(folder):
+            in_excluded_dir = is_in_excluded_dir(root)
             for f in files:
+                if all_file_base_counts is not None and not in_excluded_dir:
+                    base_name = os.path.splitext(f)[0].lower()
+                    all_file_base_counts[base_name] = all_file_base_counts.get(base_name, 0) + 1
                 if should_include(f):
                     file_list.append(os.path.join(root, f).replace('\\', '/'))
     else:
         if os.path.exists(folder):
             try:
+                in_excluded_dir = is_in_excluded_dir(folder)
                 with os.scandir(folder) as entries:
                     for entry in entries:
                         if entry.is_file(follow_symlinks=False):
+                            if all_file_base_counts is not None and not in_excluded_dir:
+                                base_name = os.path.splitext(entry.name)[0].lower()
+                                all_file_base_counts[base_name] = all_file_base_counts.get(base_name, 0) + 1
                             if should_include(entry.name):
                                 file_list.append(entry.path.replace('\\', '/'))
             except PermissionError:

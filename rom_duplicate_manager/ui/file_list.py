@@ -513,33 +513,24 @@ class FileListMixin:
         Handles deletion of both regular files and orphaned images with user confirmation,
         progress indication, and proper cleanup of the UI afterward.
         """
-        selected = self.tree.selection()
-        file_items = [item for item in selected if self.tree.parent(item)]
-        if not file_items:
-            # If nothing selected, use all marked items
-            for item in self.tree.tag_has('to_remove'):
-                file_items.append(item)
+        selected = [item for item in self.tree.selection() if self.tree.parent(item)]
+        marked = list(self.tree.tag_has('to_remove'))
+        if marked:
+            # Always include marked items, plus any additional selected items
+            file_items = list(dict.fromkeys(marked + selected))
+        else:
+            file_items = selected
 
         orphaned_images = []
         if self.scan_images.get():
             # Calculate which images will become orphaned after deletion
-            all_files = []
-            for paths in self.duplicates.values():
-                all_files.extend(paths)
-            for paths in self.non_duplicates.values():
-                all_files.extend(paths)
-
             files_to_delete_paths = set()
             for item in file_items:
                 values = self.tree.item(item, 'values')
                 if values:
                     files_to_delete_paths.add(values[0])
 
-            keep_filenames = set()
-            for path in all_files:
-                if path not in files_to_delete_paths:
-                    keep_filenames.add(os.path.splitext(os.path.basename(path))[0].lower())
-
+            keep_filenames = self._build_keep_filenames(exclude_paths=files_to_delete_paths)
             orphaned_images = self.get_orphaned_images(keep_filenames)
 
         if not file_items and not orphaned_images:
@@ -580,10 +571,10 @@ class FileListMixin:
             return messagebox.askyesno("Confirm Permanent Delete", msg, icon='warning')
         else:
             if file_items and orphaned_images:
-                msg = (f"You are about to move {len(file_items)} marked file(s) AND "
+                msg = (f"You are about to move {len(file_items)} selected/marked file(s) AND "
                       f"{len(orphaned_images)} orphaned image(s) to the recycle bin")
             elif file_items:
-                msg = f"You are about to move {len(file_items)} marked file(s) to the recycle bin"
+                msg = f"You are about to move {len(file_items)} selected/marked file(s) to the recycle bin"
             else:
                 msg = f"You are about to move {len(orphaned_images)} orphaned image(s) to the recycle bin"
             return messagebox.askokcancel("Confirm Delete", msg)
